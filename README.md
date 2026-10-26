@@ -103,16 +103,26 @@ For video conversion, install FFmpeg: `sudo dnf install ffmpeg-free`, or
 
 ### Windows
 
-1. Install [MozillaBuild](https://wiki.mozilla.org/MozillaBuild) and the Visual
-   Studio 2022 Build Tools. `mach bootstrap` tells you exactly which parts are
-   needed.
+1. Clone the repository with Unix line endings and long paths turned on (the
+   build breaks with Git's default CRLF conversion):
+   ```powershell
+   git clone -c core.autocrlf=false -c core.longpaths=true https://github.com/SoulVoid0/Offox
+   cd Offox
+   ```
 2. Optional: put an LGPL FFmpeg build in `offox\installer\windows\ffmpeg\` (see the
    README there) so video conversion works out of the box.
-3. In the MozillaBuild shell (`C:\mozilla-build\start-shell.bat`):
-   ```sh
-   git clone https://github.com/SoulVoid0/Offox && cd Offox
-   offox/installer/build-windows.sh
+3. In PowerShell, run:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File offox\installer\build-windows.ps1
    ```
+   It installs [MozillaBuild](https://wiki.mozilla.org/MozillaBuild) if needed
+   (this asks for administrator rights once). Then `mach bootstrap` downloads
+   the compilers and SDKs, and the script builds Offox and makes the installer.
+   Later builds can skip the bootstrap: add `-SkipBootstrap`. Use
+   `-NoInstaller` to build only the browser, or `-ObjDir D:\offox-obj` to put
+   the build output on another disk.
+   If you prefer the MozillaBuild shell, `offox/installer/build-windows.sh`
+   does the same.
 
 The result is `dist\Offox-<version>-Setup.exe`. Its second page asks for the
 installation type:

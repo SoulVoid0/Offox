@@ -2,7 +2,8 @@
 # Builds Offox on Windows and makes the installer (normal or portable choice):
 #   dist/Offox-<version>-Setup.exe
 #
-# Run inside the MozillaBuild shell (C:\mozilla-build\start-shell.bat):
+# Run inside the MozillaBuild shell (C:\mozilla-build\start-shell.bat), or use
+# build-windows.ps1 from PowerShell, which also installs MozillaBuild:
 #   offox/installer/build-windows.sh
 # This repository is the Firefox ESR source with Offox already applied, so it
 # builds in place.
