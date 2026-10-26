@@ -1,0 +1,13 @@
+{
+  "id": "docs",
+  "name": "Documents (word processor)",
+  "icon": "📝",
+  "description": "Write and format documents like in Google Docs or Word: styles, fonts, lists, tables, pictures, autosave, print and PDF export.",
+  "defaultTitle": "Docs",
+  "defaultDomain": "docs.offox",
+  "shared": ["util.js", "ui.css"],
+  "directories": ["documents"],
+  "searchRules": [
+    { "type": "folders", "dir": "documents", "json": "meta.json", "titleKey": "title", "text": ["document.html"], "url": "/doc.html?id={name}", "kind": "document" }
+  ]
+}

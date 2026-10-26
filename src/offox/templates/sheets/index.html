@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{SITE_TITLE}}</title>
+  <meta name="description" content="{{SITE_DESCRIPTION}}">
+  <link rel="stylesheet" href="assets/ui.css">
+  <link rel="stylesheet" href="assets/sheets.css">
+</head>
+<body>
+  <header class="home-top"><div class="brand"><span class="logo">▦</span>{{SITE_TITLE}}</div><input id="q" placeholder="Search spreadsheets"></header>
+  <div class="wrap">
+    <h3>Start a new spreadsheet</h3>
+    <div class="new-row" id="new"></div>
+    <h3>Recent spreadsheets</h3>
+    <div id="list"></div>
+  </div>
+  <script src="/__offox/offox.js"></script>
+  <script src="assets/util.js"></script>
+  <script>
+    (async () => {
+      const STARTERS = {
+        Blank: [],
+        Budget: [["Category", "Planned", "Actual", "Difference"], ["Rent", 900, 900, "=B2-C2"], ["Food", 400, 352.5, "=B3-C3"], ["Transport", 120, 140, "=B4-C4"], ["Fun", 150, 95, "=B5-C5"], ["Total", "=SUM(B2:B5)", "=SUM(C2:C5)", "=SUM(D2:D5)"]],
+        "To-do list": [["Task", "Due", "Done?"], ["Example task", "2026-12-01", "FALSE"], ["", "", ""], ["Open tasks", "", '=COUNTIF(C2:C50,FALSE)']],
+        Gradebook: [["Student", "Test 1", "Test 2", "Test 3", "Average", "Passed"], ["Alex", 78, 85, 92, "=ROUND(AVERAGE(B2:D2),1)", '=IF(E2>=60,"Yes","No")'], ["Sam", 55, 61, 58, "=ROUND(AVERAGE(B3:D3),1)", '=IF(E3>=60,"Yes","No")']],
+      };
+      let create = async name => {
+        let id = Offox.id(10);
+        let now = new Date().toISOString();
+        let cells = {};
+        (STARTERS[name] || []).forEach((row, r) => row.forEach((v, c) => { if (v !== "") cells[String.fromCharCode(65 + c) + (r + 1)] = { v: String(v), ...(r === 0 ? { b: true, bg: "#e8f0fe" } : {}) }; }));
+        await Offox.writeJSON(`spreadsheets/${id}/workbook.json`, { sheets: [{ name: "Sheet1", rows: 100, cols: 26, cells, widths: {}, charts: [] }] });
+        await Offox.writeJSON(`spreadsheets/${id}/meta.json`, { title: name === "Blank" ? "Untitled spreadsheet" : name, created: now, updated: now });
+        location.href = `sheet.html?id=${id}`;
+      };
+      for (let name of Object.keys(STARTERS)) {
+        $("#new").append(h("div", { class: "new-card", onclick: () => create(name) }, h("div", { class: "paper" }, name === "Blank" ? "＋" : "▦"), h("div", {}, name)));
+      }
+      let items = await Offox.collect("spreadsheets", ["meta.json"]);
+      let list = items.map(i => { let m = {}; try { m = JSON.parse(i.files["meta.json"] || "{}"); } catch (e) {} return { id: i.name, title: m.title || "Untitled spreadsheet", updated: m.updated || new Date(i.modified).toISOString(), text: m.text || "" }; })
+        .sort((a, b) => new Date(b.updated) - new Date(a.updated));
+      let render = () => {
+        let q = $("#q").value.toLowerCase();
+        let shown = list.filter(x => (x.title + " " + x.text).toLowerCase().includes(q));
+        $("#list").replaceChildren(...shown.map(x => h("a", { class: "list-item", href: `sheet.html?id=${encodeURIComponent(x.id)}` },
+          h("span", { class: "logo", style: { width: "22px", height: "28px", fontSize: "12px" } }, "▦"), h("span", { class: "t" }, x.title), h("small", {}, "Opened " + timeAgo(x.updated)),
+          h("button", { title: "Delete", onclick: async e => { e.preventDefault(); if (!confirm(`Delete “${x.title}”?`)) return; await Offox.remove(`spreadsheets/${x.id}`); list = list.filter(y => y !== x); render(); } }, "🗑"))));
+        if (!shown.length) $("#list").append(h("p", { style: { color: "var(--muted)" } }, list.length ? "No spreadsheets match." : "No spreadsheets yet."));
+      };
+      $("#q").oninput = render;
+      render();
+    })();
+  </script>
+</body>
+</html>

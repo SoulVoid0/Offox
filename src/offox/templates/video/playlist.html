@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Playlist – {{SITE_TITLE}}</title>
+  <meta name="fireline" content="noindex">
+  <link rel="icon" href="assets/logo.svg">
+  <link rel="stylesheet" href="assets/ui.css">
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <main id="main"></main>
+  <script src="/__offox/offox.js"></script>
+  <script src="assets/util.js"></script>
+  <script src="assets/app.js"></script>
+  <script>
+    (async () => {
+      await OffTube.layout("playlists");
+      let id = param("id");
+      let main = $("#main");
+      let pl;
+      try { pl = await Offox.readJSON(`playlists/${id}.json`); } catch (e) {
+        main.append(h("div", { class: "empty" }, h("h2", {}, "Playlist not found"), h("a", { class: "btn", href: "playlists.html" }, "All playlists")));
+        return;
+      }
+      let videos = await OffTube.videos();
+      document.title = `${pl.name} – {{SITE_TITLE}}`;
+      let render = () => {
+        let items = pl.videos.map(v => videos.find(x => x.id === v)).filter(Boolean);
+        let first = items[0];
+        main.replaceChildren(...[
+          h("div", { class: "playlist-hero" },
+            first ? OffTube.thumbNode(first) : h("div", { class: "thumb" }, h("span", { class: "placeholder" }, "≡")),
+            h("div", {},
+              h("h1", {}, pl.name),
+              h("p", { class: "meta" }, `${items.length} video${items.length === 1 ? "" : "s"} · created ${formatDate(pl.created)}`),
+              pl.description ? h("p", {}, linkify(pl.description)) : null,
+              h("div", { class: "toolbar" },
+                first ? h("a", { class: "btn primary", href: `watch.html?v=${encodeURIComponent(first.id)}&list=${encodeURIComponent(pl.id)}` }, "▶ Play all") : null,
+                h("button", { class: "btn", onclick: async () => {
+                  let data = await dialogForm("Edit playlist", [
+                    { name: "name", label: "Name", value: pl.name, required: true },
+                    { name: "description", label: "Description", type: "textarea", value: pl.description || "", rows: 3 },
+                  ]);
+                  if (!data) return;
+                  pl.name = data.name.trim() || pl.name;
+                  pl.description = data.description;
+                  await OffTube.savePlaylist(pl);
+                  render();
+                } }, "✎ Edit"),
+                h("button", { class: "btn danger", onclick: async () => {
+                  if (!confirm(`Delete the playlist “${pl.name}”? The videos themselves are kept.`)) return;
+                  await Offox.remove(`playlists/${pl.id}.json`);
+                  location.href = "playlists.html";
+                } }, "🗑 Delete playlist")))),
+          items.length ? null : h("div", { class: "empty" }, h("p", {}, "This playlist is empty. Open a video and press “Save” to add it.")),
+          items.map((v, i) => h("div", { class: "list-row" },
+            h("span", { class: "meta" }, String(i + 1)),
+            h("a", { href: `watch.html?v=${encodeURIComponent(v.id)}&list=${encodeURIComponent(pl.id)}` }, OffTube.thumbNode(v)),
+            h("div", { class: "info" },
+              h("a", { href: `watch.html?v=${encodeURIComponent(v.id)}&list=${encodeURIComponent(pl.id)}` }, h("h3", {}, v.title)),
+              h("div", { class: "meta" }, timeAgo(v.created))),
+            h("div", { class: "tools" },
+              h("button", { title: "Move up", disabled: i === 0, onclick: () => move(i, -1) }, "↑"),
+              h("button", { title: "Move down", disabled: i === items.length - 1, onclick: () => move(i, 1) }, "↓"),
+              h("button", { title: "Remove from playlist", onclick: async () => {
+                pl.videos = pl.videos.filter(x => x !== v.id);
+                await OffTube.savePlaylist(pl);
+                render();
+              } }, "✕"))))].flat().filter(Boolean));
+      };
+      async function move(i, delta) {
+        let ids = pl.videos.filter(x => videos.some(v => v.id === x));
+        [ids[i], ids[i + delta]] = [ids[i + delta], ids[i]];
+        pl.videos = ids;
+        await OffTube.savePlaylist(pl);
+        render();
+      }
+      render();
+    })();
+  </script>
+</body>
+</html>

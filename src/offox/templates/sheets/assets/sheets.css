@@ -1,0 +1,65 @@
+:root { --bg: #f9fbfd; --surface: #fff; --text: #1f1f1f; --muted: #5f6368; --line: #e1e1e1; --head: #f8f9fa; --hover: #e8eaed; --accent: #188038; --sel: rgba(26, 115, 232, .12); --selb: #1a73e8; color-scheme: light dark; }
+@media (prefers-color-scheme: dark) { :root { --bg: #1b1b1d; --surface: #202124; --text: #e8eaed; --muted: #9aa0a6; --line: #3c4043; --head: #28292c; --hover: #35363a; --accent: #81c995; --sel: rgba(138, 180, 248, .18); --selb: #8ab4f8; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, "Segoe UI", sans-serif; }
+a { color: inherit; text-decoration: none; }
+button, input, select { font: inherit; color: inherit; }
+.home-top { display: flex; align-items: center; gap: 16px; padding: 10px 20px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.home-top .brand { display: flex; align-items: center; gap: 10px; font-size: 22px; }
+.logo { width: 30px; height: 38px; border-radius: 4px; background: #0f9d58; color: #fff; display: grid; place-items: center; font-weight: 700; }
+.home-top input { flex: 1; max-width: 700px; padding: 11px 18px; border: 0; border-radius: 10px; background: var(--hover); }
+.wrap { max-width: 1000px; margin: 0 auto; padding: 20px; }
+.new-row { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 26px; }
+.new-card { width: 150px; cursor: pointer; }
+.new-card .paper { height: 110px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); display: grid; place-items: center; font-size: 46px; color: var(--accent); }
+.new-card:hover .paper { border-color: var(--accent); }
+.list-item { display: flex; align-items: center; gap: 14px; padding: 10px 14px; border-radius: 999px; }
+.list-item:hover { background: var(--hover); }
+.list-item .t { flex: 1; font-weight: 500; }
+.list-item small { color: var(--muted); }
+.list-item button { border: 0; background: none; cursor: pointer; }
+/* Editor */
+.top { display: flex; align-items: center; gap: 10px; padding: 6px 14px 0; }
+.top input.title { font-size: 18px; border: 1px solid transparent; border-radius: 4px; padding: 2px 6px; background: none; min-width: 200px; }
+.top input.title:hover, .top input.title:focus { border-color: var(--line); outline: none; }
+.top .status { color: var(--muted); font-size: 13px; }
+.top .spacer { flex: 1; }
+.btn { padding: 7px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; margin: 6px 10px; padding: 3px 10px; background: var(--hover); border-radius: 24px; }
+.toolbar button { border: 0; background: none; min-width: 28px; height: 28px; border-radius: 4px; cursor: pointer; padding: 0 6px; }
+.toolbar button:hover { background: var(--line); }
+.toolbar button.on { background: color-mix(in srgb, var(--selb) 25%, transparent); }
+.toolbar select { border: 0; background: none; height: 28px; cursor: pointer; }
+.toolbar .sep { width: 1px; height: 20px; background: var(--line); margin: 0 4px; }
+.toolbar input[type=color] { width: 24px; height: 22px; border: 0; padding: 0; background: none; cursor: pointer; }
+.fbar { display: flex; align-items: center; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--surface); }
+.fbar .name { width: 90px; padding: 4px 10px; border-right: 1px solid var(--line); color: var(--muted); }
+.fbar .fx { padding: 0 10px; color: var(--muted); font-style: italic; }
+.fbar input { flex: 1; border: 0; padding: 5px 8px; background: none; outline: none; font-family: ui-monospace, Consolas, monospace; }
+.gridwrap { position: absolute; top: 132px; left: 0; right: 0; bottom: 38px; overflow: auto; background: var(--surface); }
+table.grid { border-collapse: separate; border-spacing: 0; table-layout: fixed; user-select: none; }
+table.grid th { position: sticky; background: var(--head); color: var(--muted); font-weight: 400; font-size: 12px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); z-index: 2; }
+table.grid thead th { top: 0; height: 24px; }
+table.grid thead th .resize { position: absolute; right: -3px; top: 0; bottom: 0; width: 6px; cursor: col-resize; z-index: 3; }
+table.grid tbody th { left: 0; width: 46px; z-index: 1; }
+table.grid thead th.corner { left: 0; z-index: 4; }
+table.grid th.hl { background: color-mix(in srgb, var(--selb) 18%, var(--head)); color: var(--text); }
+table.grid td { height: 23px; padding: 0 4px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
+table.grid td.num { text-align: right; }
+table.grid td.err { color: #d93025; }
+table.grid td.sel { background-image: linear-gradient(var(--sel), var(--sel)); }
+table.grid td.cur { outline: 2px solid var(--selb); outline-offset: -2px; }
+.editor-input { position: absolute; border: 2px solid var(--selb); padding: 0 3px; font: 13px system-ui, sans-serif; z-index: 5; outline: none; background: var(--surface); box-shadow: 0 2px 8px #0003; }
+.tabs { position: fixed; left: 0; right: 0; bottom: 0; height: 38px; display: flex; align-items: center; gap: 2px; padding: 0 10px; background: var(--head); border-top: 1px solid var(--line); overflow-x: auto; }
+.tabs button { border: 0; background: none; padding: 6px 14px; border-radius: 4px 4px 0 0; cursor: pointer; white-space: nowrap; }
+.tabs button.active { background: var(--surface); color: var(--accent); font-weight: 600; box-shadow: 0 -2px 0 var(--accent) inset; }
+.tabs .sum { margin-left: auto; color: var(--muted); font-size: 13px; white-space: nowrap; }
+.chart { position: absolute; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 2px 10px #0003; z-index: 6; resize: both; overflow: hidden; min-width: 260px; min-height: 180px; }
+.chart .head { display: flex; align-items: center; gap: 6px; padding: 4px 8px; cursor: move; background: var(--head); font-weight: 600; font-size: 13px; }
+.chart .head span { flex: 1; }
+.chart .head button { border: 0; background: none; cursor: pointer; }
+.chart canvas { display: block; width: 100%; height: calc(100% - 30px); }
+.menu { position: fixed; background: var(--surface); box-shadow: 0 4px 16px #0004; border-radius: 6px; padding: 6px 0; z-index: 50; min-width: 200px; }
+.menu button { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 6px 16px; cursor: pointer; }
+.menu button:hover { background: var(--hover); }
+@media print { .top, .toolbar, .fbar, .tabs, .chart .head { display: none !important; } .gridwrap { position: static; overflow: visible; } }

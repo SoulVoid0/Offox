@@ -1,0 +1,13 @@
+{
+  "id": "slides",
+  "name": "Presentations",
+  "icon": "📽️",
+  "description": "Make slide decks like Google Slides or PowerPoint: themes, layouts, text boxes, pictures, shapes, speaker notes, full-screen presenting and PDF export.",
+  "defaultTitle": "Slides",
+  "defaultDomain": "slides.offox",
+  "shared": ["util.js", "ui.css"],
+  "directories": ["presentations"],
+  "searchRules": [
+    { "type": "folders", "dir": "presentations", "json": "meta.json", "titleKey": "title", "textKeys": ["text"], "url": "/deck.html?id={name}", "kind": "presentation" }
+  ]
+}

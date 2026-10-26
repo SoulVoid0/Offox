@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Add books – {{SITE_TITLE}}</title>
+  <meta name="fireline" content="noindex">
+  <link rel="stylesheet" href="assets/ui.css">
+  <link rel="stylesheet" href="assets/library.css">
+</head>
+<body>
+  <main id="main">
+    <h1 id="heading">Add books</h1>
+    <form class="edit" id="form">
+      <label class="full" id="files-label">Files (PDF, EPUB, TXT, Markdown, HTML…). Several files create several books.
+        <input type="file" name="files" multiple></label>
+      <label>Title (only for a single file) <input name="title"></label>
+      <label>Author <input name="author"></label>
+      <label>Year <input name="year"></label>
+      <label>Tags (comma separated) <input name="tags"></label>
+      <label class="full">Description <textarea name="description" rows="5"></textarea></label>
+      <label>Cover image (optional) <input type="file" name="cover" accept="image/*"></label>
+      <div class="full" id="queue"></div>
+      <div class="full"><button class="btn primary" id="save">Save</button> <a href="./">Cancel</a></div>
+    </form>
+  </main>
+  <script src="/__offox/offox.js"></script>
+  <script src="assets/util.js"></script>
+  <script src="assets/library.js"></script>
+  <script>
+    (async () => {
+      Library.header();
+      let form = $("#form");
+      let id = param("id");
+      let book = id ? (await Library.books()).find(b => b.id === id) : null;
+      if (book) {
+        $("#heading").textContent = `Edit “${book.title}”`;
+        $("#files-label").hidden = true;
+        for (let k of ["title", "author", "year", "description"]) form.elements[k].value = book[k] || "";
+        form.elements.tags.value = book.tags.join(", ");
+      }
+      form.addEventListener("submit", async e => {
+        e.preventDefault();
+        $("#save").disabled = true;
+        let data = new FormData(form);
+        let common = { author: data.get("author").trim(), year: data.get("year").trim(), description: data.get("description"),
+          tags: data.get("tags").split(",").map(t => t.trim()).filter(Boolean) };
+        let cover = data.get("cover");
+        let saveCover = async bookId => { if (cover && cover.size) await Offox.upload(`books/${bookId}/cover.${extOf(cover.name) || "jpg"}`, cover); };
+        if (book) {
+          Object.assign(book.meta, common, { title: data.get("title").trim() || book.title, file: book.file });
+          await Offox.writeJSON(`books/${book.id}/book.json`, book.meta);
+          await saveCover(book.id);
+          location.href = `book.html?id=${encodeURIComponent(book.id)}`;
+          return;
+        }
+        let files = data.getAll("files").filter(f => f.size);
+        if (!files.length) { toast("Choose at least one file"); $("#save").disabled = false; return; }
+        for (let f of files) {
+          let bookId = slugify(f.name.replace(/\.[^.]+$/, "")).toLowerCase().slice(0, 50) + "-" + Offox.id(4);
+          let bar = h("progress", { max: 1, value: 0 });
+          $("#queue").append(h("div", {}, f.name + " ", bar));
+          let name = slugify(f.name);
+          await Offox.upload(`books/${bookId}/${name}`, f, { onProgress: v => (bar.value = v) });
+          let title = files.length === 1 && data.get("title").trim() ? data.get("title").trim() : f.name.replace(/\.[^.]+$/, "").replace(/[_]+/g, " ");
+          await Offox.writeJSON(`books/${bookId}/book.json`, { title, ...common, file: name, created: new Date().toISOString() });
+          await saveCover(bookId);
+        }
+        location.href = "./";
+      });
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Upload – {{SITE_TITLE}}</title>
+  <meta name="fireline" content="noindex">
+  <link rel="icon" href="assets/logo.svg">
+  <link rel="stylesheet" href="assets/ui.css">
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <main id="main">
+    <div class="page">
+      <h1>Upload videos</h1>
+      <label class="dropzone" id="drop">
+        <b>Drag and drop video files here</b>
+        or click to choose files. Any format works: MP4, WebM, MKV, MOV, AVI, WMV, FLV, MPEG…
+        <input type="file" id="files" accept="video/*,.mkv,.avi,.wmv,.flv,.ts,.m2ts,.mts,.mpg,.mpeg,.vob,.3gp,.ogv" multiple hidden>
+      </label>
+      <div id="items"></div>
+      <div class="toolbar" id="actions" hidden>
+        <button class="btn primary" id="upload-all">Upload all</button>
+        <span class="meta" id="summary"></span>
+      </div>
+    </div>
+  </main>
+  <script src="/__offox/offox.js"></script>
+  <script src="assets/util.js"></script>
+  <script src="assets/app.js"></script>
+  <script>
+    (async () => {
+      await OffTube.layout("upload");
+      let media = await Offox.media.info().catch(() => ({ ffmpeg: false }));
+      let pending = [];
+
+      function addFile(file) {
+        let item = { file, done: false };
+        let thumb = h("div", { class: "thumb" }, h("span", { class: "placeholder" }, "⏳"));
+        let title = h("input", { type: "text", value: file.name.replace(/\.[^.]+$/, "").replace(/[_]+/g, " "), maxlength: 200 });
+        let description = h("textarea", { rows: 4, placeholder: "Tell viewers about your video" });
+        let bar = h("progress", { max: 1, value: 0, hidden: true });
+        let status = h("div", { class: "status" }, `${file.name} · ${formatSize(file.size)}`);
+        let remove = h("button", { class: "btn", onclick: () => { pending = pending.filter(p => p !== item); row.remove(); refresh(); } }, "Remove");
+        let row = h("div", { class: "upload-item" },
+          thumb,
+          h("div", {},
+            h("label", {}, "Title", title),
+            h("label", {}, "Description", description),
+            status, bar,
+            h("div", { class: "toolbar" }, remove)));
+        Object.assign(item, { row, thumb, title, description, bar, status, remove });
+        pending.push(item);
+        $("#items").append(row);
+        refresh();
+
+        // Preview + playability check happen locally before anything is copied.
+        let url = URL.createObjectURL(file);
+        captureThumbnail(url).then(result => {
+          URL.revokeObjectURL(url);
+          item.playable = !!result;
+          if (result) {
+            item.thumbBlob = result.blob;
+            item.duration = result.duration;
+            thumb.replaceChildren(h("img", { src: URL.createObjectURL(result.blob), alt: "" }),
+              h("span", { class: "duration" }, formatDuration(result.duration)));
+          } else {
+            thumb.replaceChildren(h("span", { class: "placeholder" }, extOf(file.name).toUpperCase() || "?"));
+            status.append(h("div", { class: "warn" }, media.ffmpeg
+              ? "Firefox can't play this format directly; Offox will convert a copy after uploading (the original is kept)."
+              : "Firefox can't play this format directly. It will be stored as-is; install FFmpeg to convert it later."));
+          }
+        });
+      }
+
+      function refresh() {
+        $("#actions").hidden = !pending.some(p => !p.done);
+        $("#summary").textContent = `${pending.filter(p => !p.done).length} file(s) ready`;
+      }
+
+      async function uploadOne(item) {
+        let id = Offox.id();
+        let ext = extOf(item.file.name) || "mp4";
+        let dir = `videos/${id}`;
+        item.remove.disabled = true;
+        item.bar.hidden = false;
+        await Offox.mkdir(dir);
+        item.status.textContent = "Copying into your storage folder…";
+        await Offox.upload(`${dir}/video.${ext}`, item.file, {
+          onProgress: p => { item.bar.value = p; item.status.textContent = `Copying… ${Math.round(p * 100)}%`; },
+        });
+        await Offox.writeText(`${dir}/title.txt`, item.title.value.trim() || item.file.name);
+        await Offox.writeText(`${dir}/description.txt`, item.description.value);
+        await Offox.writeText(`${dir}/created.txt`, new Date().toISOString());
+        let info = { file: `video.${ext}`, originalName: item.file.name, duration: item.duration || 0, views: 0 };
+        if (item.thumbBlob) await Offox.write(`${dir}/thumbnail.jpg`, item.thumbBlob);
+        await Offox.writeJSON(`${dir}/info.json`, info);
+
+        if (item.playable === false && media.ffmpeg) {
+          item.bar.value = 0;
+          try {
+            let job = await Offox.media.convertAndWait(`${dir}/video.${ext}`, {
+              onProgress: p => { item.bar.value = p; item.status.textContent = `Converting so it plays in Offox… ${Math.round(p * 100)}%`; },
+            });
+            info.converted = job.outputName;
+            await Offox.writeJSON(`${dir}/info.json`, info);
+          } catch (e) {
+            item.status.append(h("div", { class: "warn" }, "Conversion failed: " + e.message));
+          }
+        }
+        item.done = true;
+        item.bar.value = 1;
+        item.status.replaceChildren("Uploaded · ", h("a", { href: `watch.html?v=${id}`, style: { color: "var(--link)" } }, "Watch it now"));
+        refresh();
+      }
+
+      $("#files").addEventListener("change", e => { [...e.target.files].forEach(addFile); e.target.value = ""; });
+      let drop = $("#drop");
+      drop.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add("over"); });
+      drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+      drop.addEventListener("drop", e => {
+        e.preventDefault();
+        drop.classList.remove("over");
+        [...e.dataTransfer.files].forEach(addFile);
+      });
+      $("#upload-all").addEventListener("click", async e => {
+        e.target.disabled = true;
+        for (let item of pending.filter(p => !p.done)) {
+          try { await uploadOne(item); }
+          catch (err) { item.status.append(h("div", { class: "warn" }, "Upload failed: " + err.message)); }
+        }
+        e.target.disabled = false;
+        toast("All uploads finished");
+      });
+    })();
+  </script>
+</body>
+</html>

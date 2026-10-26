@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{SITE_TITLE}}</title>
+  <meta name="description" content="{{SITE_DESCRIPTION}}">
+  <link rel="stylesheet" href="assets/ui.css">
+  <style>
+    :root { --bg: #f8fafd; --surface: #fff; --text: #1f1f1f; --muted: #5f6368; --line: #e1e3e6; --hover: #e9eef6; --sel: #c2e7ff; --accent: #0b57d0; color-scheme: light dark; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #131314; --surface: #1e1f20; --text: #e3e3e3; --muted: #a8abaf; --line: #333537; --hover: #282a2c; --sel: #004a77; --accent: #a8c7fa; } }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, "Segoe UI", sans-serif; }
+    header { display: flex; align-items: center; gap: 16px; padding: 10px 20px; }
+    header .brand { font-size: 22px; display: flex; gap: 8px; align-items: center; min-width: 200px; }
+    header input { flex: 1; max-width: 720px; padding: 11px 18px; border-radius: 999px; border: 0; background: var(--hover); color: inherit; font: inherit; }
+    .wrap { display: flex; gap: 12px; padding: 0 16px 16px; }
+    aside { width: 220px; flex: none; }
+    aside label.new { display: inline-flex; align-items: center; gap: 10px; padding: 16px 22px; border-radius: 16px; background: var(--surface); box-shadow: 0 1px 3px #0003; cursor: pointer; font-weight: 600; margin-bottom: 16px; }
+    aside .menu { display: none; position: absolute; background: var(--surface); box-shadow: 0 4px 18px #0004; border-radius: 8px; padding: 6px 0; z-index: 10; }
+    aside .menu.open { display: block; }
+    aside .menu button, aside .menu label { display: block; width: 100%; padding: 8px 18px; background: none; border: 0; text-align: left; cursor: pointer; font: inherit; color: inherit; }
+    aside .menu button:hover, aside .menu label:hover { background: var(--hover); }
+    aside .usage { color: var(--muted); font-size: 13px; padding: 12px; }
+    .panel { flex: 1; min-width: 0; background: var(--surface); border-radius: 16px; padding: 12px 20px 30px; min-height: calc(100vh - 80px); }
+    .crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: 20px; margin: 6px 0 12px; }
+    .crumbs a { padding: 4px 10px; border-radius: 999px; color: inherit; text-decoration: none; }
+    .crumbs a:hover { background: var(--hover); }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; font-weight: 500; color: var(--muted); padding: 8px; border-bottom: 1px solid var(--line); }
+    td { padding: 8px; border-bottom: 1px solid var(--line); }
+    tr.item { cursor: default; }
+    tr.item:hover { background: var(--hover); }
+    tr.item.selected { background: var(--sel); }
+    td.name { display: flex; align-items: center; gap: 12px; }
+    td.name .ic { font-size: 20px; width: 24px; text-align: center; }
+    td.muted { color: var(--muted); white-space: nowrap; }
+    td.acts { text-align: right; white-space: nowrap; }
+    td.acts button { border: 0; background: none; cursor: pointer; color: var(--muted); padding: 4px 6px; border-radius: 50%; font-size: 15px; }
+    td.acts button:hover { background: var(--line); color: var(--text); }
+    .dropping { outline: 3px dashed var(--accent); outline-offset: -6px; }
+    .uploads { position: fixed; right: 20px; bottom: 20px; width: 340px; background: var(--surface); border-radius: 12px; box-shadow: 0 6px 24px #0005; padding: 12px 16px; display: none; }
+    .uploads.show { display: block; }
+    .uploads div { display: flex; gap: 8px; align-items: center; font-size: 13px; margin: 4px 0; }
+    .uploads span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .preview { position: fixed; inset: 0; background: #000d; z-index: 50; display: flex; flex-direction: column; }
+    .preview .bar { display: flex; gap: 10px; align-items: center; padding: 10px 16px; color: #fff; }
+    .preview .bar b { flex: 1; }
+    .preview .bar a, .preview .bar button { color: #fff; background: #fff2; border: 0; border-radius: 999px; padding: 6px 14px; cursor: pointer; text-decoration: none; font: inherit; }
+    .preview .body { flex: 1; display: grid; place-items: center; min-height: 0; padding: 10px; }
+    .preview img, .preview video { max-width: 100%; max-height: 100%; }
+    .preview iframe, .preview pre { width: min(1000px, 100%); height: 100%; background: #fff; border: 0; border-radius: 6px; }
+    .preview pre { overflow: auto; padding: 16px; color: #222; white-space: pre-wrap; margin: 0; }
+    .empty { text-align: center; color: var(--muted); padding: 60px 0; }
+    @media (max-width: 760px) { aside { display: none; } header .brand { min-width: 0; } td.muted { display: none; } }
+  </style>
+</head>
+<body>
+  <header><div class="brand">🗂️ {{SITE_TITLE}}</div><input id="filter" placeholder="Search in this folder"></header>
+  <div class="wrap">
+    <aside>
+      <label class="new" id="new-btn">＋ New</label>
+      <div class="menu" id="menu">
+        <button id="mkdir">📁 New folder</button>
+        <label>⬆ Upload files<input type="file" id="up-files" multiple hidden></label>
+        <label>⬆ Upload folder<input type="file" id="up-folder" webkitdirectory multiple hidden></label>
+        <button id="mktext">📝 New text file</button>
+      </div>
+      <div class="usage" id="usage"></div>
+    </aside>
+    <section class="panel" id="panel">
+      <div class="crumbs" id="crumbs"></div>
+      <table><thead><tr><th>Name</th><th>Modified</th><th>Size</th><th></th></tr></thead><tbody id="list"></tbody></table>
+    </section>
+  </div>
+  <div class="uploads" id="uploads"></div>
+  <script src="/__offox/offox.js"></script>
+  <script src="assets/util.js"></script>
+  <script>
+    "use strict";
+    /* Drive – every file lives under files/ in this site's folder. */
+    let cwd = (location.hash.slice(1) && decodeURIComponent(location.hash.slice(1))) || "";
+    let entries = [];
+    const join = (...p) => p.filter(Boolean).join("/");
+    const full = name => join("files", cwd, name);
+    const icon = e => e.type === "directory" ? "📁" : IMAGE_EXT.includes(extOf(e.name)) ? "🖼️" : VIDEO_EXT.includes(extOf(e.name)) ? "🎬"
+      : AUDIO_EXT.includes(extOf(e.name)) ? "🎵" : extOf(e.name) === "pdf" ? "📕" : ["zip", "7z", "rar", "gz", "xz", "tar"].includes(extOf(e.name)) ? "🗜️" : "📄";
+
+    async function load() {
+      entries = await Offox.list(join("files", cwd));
+      entries.sort((a, b) => (a.type === b.type ? a.name.localeCompare(b.name, undefined, { numeric: true }) : a.type === "directory" ? -1 : 1));
+      render();
+      $("#usage").textContent = `${plural(entries.filter(e => e.type === "file").length, "file")} · ${formatSize(entries.reduce((s, e) => s + (e.type === "file" ? e.size : 0), 0))} in this folder`;
+    }
+
+    function go(path) {
+      cwd = path;
+      location.hash = path ? encodeURIComponent(path) : "";
+      $("#filter").value = "";
+      load();
+    }
+
+    function render() {
+      let parts = cwd ? cwd.split("/") : [];
+      $("#crumbs").replaceChildren(h("a", { href: "#", onclick: e => { e.preventDefault(); go(""); } }, "My Drive"),
+        ...parts.flatMap((p, i) => ["›", h("a", { href: "#", onclick: e => { e.preventDefault(); go(parts.slice(0, i + 1).join("/")); } }, p)]));
+      let q = $("#filter").value.toLowerCase();
+      let rows = entries.filter(e => !q || e.name.toLowerCase().includes(q)).map(e => h("tr", { class: "item", ondblclick: () => open(e) },
+        h("td", { class: "name" }, h("span", { class: "ic" }, icon(e)), h("a", { href: e.type === "directory" ? "#" : Offox.url(full(e.name)), onclick: ev => { ev.preventDefault(); open(e); }, style: { color: "inherit", textDecoration: "none" } }, e.name)),
+        h("td", { class: "muted" }, new Date(e.modified).toLocaleString()),
+        h("td", { class: "muted" }, e.type === "directory" ? "—" : formatSize(e.size)),
+        h("td", { class: "acts" },
+          e.type === "file" ? h("a", { href: Offox.url(full(e.name)) + "?download", title: "Download" }, h("button", {}, "⬇")) : null,
+          h("button", { title: "Rename / move", onclick: () => rename(e) }, "✎"),
+          h("button", { title: "Delete", onclick: () => remove(e) }, "🗑"))));
+      $("#list").replaceChildren(...rows);
+      if (!rows.length) $("#list").append(h("tr", {}, h("td", { colspan: 4, class: "empty" }, q ? "Nothing matches." : "This folder is empty. Drop files here or use ＋ New.")));
+    }
+
+    function open(e) {
+      if (e.type === "directory") return go(join(cwd, e.name));
+      let url = Offox.url(full(e.name));
+      let ext = extOf(e.name);
+      let body;
+      if (IMAGE_EXT.includes(ext)) body = h("img", { src: url, alt: "" });
+      else if (VIDEO_EXT.includes(ext)) body = h("video", { src: url, controls: true, autoplay: true });
+      else if (AUDIO_EXT.includes(ext)) body = h("audio", { src: url, controls: true, autoplay: true });
+      else if (ext === "pdf" || ext === "html" || ext === "htm") body = h("iframe", { src: url });
+      else if (["txt", "md", "json", "csv", "log", "xml", "js", "css", "ini", "cfg", "yml", "yaml", "py", "sh", "c", "cpp", "h", "java", "rs", "go"].includes(ext) || e.size < 2048) {
+        body = h("pre", {}, "Loading…");
+        Offox.readText(full(e.name)).then(t => (body.textContent = t));
+      } else return (location.href = url + "?download");
+      let close = () => { pv.remove(); removeEventListener("keydown", key); };
+      let key = ev => ev.key === "Escape" && close();
+      addEventListener("keydown", key);
+      let pv = h("div", { class: "preview" },
+        h("div", { class: "bar" }, h("b", {}, e.name), h("a", { href: url, target: "_blank" }, "Open"), h("a", { href: url + "?download" }, "Download"), h("button", { onclick: close }, "✕")),
+        h("div", { class: "body", onclick: ev => ev.target === ev.currentTarget && close() }, body));
+      document.body.append(pv);
+    }
+
+    async function rename(e) {
+      let data = await dialogForm("Rename or move", [{ name: "to", label: "New name (use / to move into a folder, relative to My Drive)", value: join(cwd, e.name), required: true }]);
+      if (!data || !data.to.trim()) return;
+      await Offox.move(full(e.name), join("files", data.to.trim().replace(/^\/+/, "")));
+      load();
+    }
+
+    async function remove(e) {
+      if (!confirm(`Delete ${e.type === "directory" ? "the folder" : ""} “${e.name}”${e.type === "directory" ? " and everything in it" : ""}? This deletes it from your disk.`)) return;
+      await Offox.remove(full(e.name));
+      load();
+    }
+
+    async function upload(files, relative = false) {
+      let box = $("#uploads");
+      box.classList.add("show");
+      for (let f of files) {
+        let rel = relative && f.webkitRelativePath ? f.webkitRelativePath : f.name;
+        let bar = h("progress", { max: 1, value: 0 });
+        box.append(h("div", {}, h("span", {}, rel), bar));
+        try {
+          await Offox.upload(join("files", cwd, rel), f, { onProgress: v => (bar.value = v) });
+        } catch (err) { bar.replaceWith("failed: " + err.message); }
+      }
+      load();
+      setTimeout(() => { box.classList.remove("show"); box.textContent = ""; }, 2500);
+    }
+
+    $("#new-btn").onclick = e => { e.stopPropagation(); $("#menu").classList.toggle("open"); };
+    document.addEventListener("click", () => $("#menu").classList.remove("open"));
+    $("#mkdir").onclick = async () => {
+      let data = await dialogForm("New folder", [{ name: "name", label: "Folder name", value: "Untitled folder", required: true }], { submit: "Create" });
+      if (data && data.name.trim()) { await Offox.mkdir(full(slugify(data.name).replace(/_/g, " "))); load(); }
+    };
+    $("#mktext").onclick = async () => {
+      let data = await dialogForm("New text file", [{ name: "name", label: "File name", value: "notes.txt", required: true }, { name: "text", label: "Text", type: "textarea", rows: 10 }], { submit: "Create" });
+      if (data && data.name.trim()) { await Offox.writeText(full(data.name.trim()), data.text); load(); }
+    };
+    $("#up-files").onchange = e => upload([...e.target.files]);
+    $("#up-folder").onchange = e => upload([...e.target.files], true);
+    $("#filter").oninput = render;
+    let panel = $("#panel");
+    panel.addEventListener("dragover", e => { e.preventDefault(); panel.classList.add("dropping"); });
+    panel.addEventListener("dragleave", () => panel.classList.remove("dropping"));
+    panel.addEventListener("drop", e => { e.preventDefault(); panel.classList.remove("dropping"); upload([...e.dataTransfer.files]); });
+    addEventListener("hashchange", () => { let p = decodeURIComponent(location.hash.slice(1)); if (p !== cwd) { cwd = p; load(); } });
+    load();
+  </script>
+</body>
+</html>

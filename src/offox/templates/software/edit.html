@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Add software – {{SITE_TITLE}}</title>
+  <meta name="fireline" content="noindex">
+  <link rel="stylesheet" href="assets/ui.css">
+  <link rel="stylesheet" href="assets/store.css">
+</head>
+<body>
+  <main id="main">
+    <h1 id="heading">Add software</h1>
+    <form class="edit section" id="form">
+      <label>Name <input type="text" name="name" required></label>
+      <label>Version <input type="text" name="version" placeholder="1.0.0"></label>
+      <label>Publisher <input type="text" name="publisher"></label>
+      <label>License <input type="text" name="license" placeholder="Free, GPL, Proprietary…"></label>
+      <label>Category <select name="category" id="category"></select></label>
+      <label>Homepage <input type="text" name="homepage" placeholder="Where it came from (optional)"></label>
+      <div class="full"><b>Platforms</b><div class="checks" id="platforms"></div></div>
+      <label class="full">Description (Markdown) <textarea name="description" rows="8"></textarea></label>
+      <label>Icon <input type="file" name="icon" accept="image/*"></label>
+      <label>Screenshots <input type="file" name="screenshots" accept="image/*" multiple></label>
+      <label class="full">Files (installers, archives, portable apps) <input type="file" name="files" multiple></label>
+      <div class="full" id="existing"></div>
+      <div class="full queue" id="queue"></div>
+      <div class="full"><button class="btn primary" id="save">Save</button> <a href="./">Cancel</a></div>
+    </form>
+  </main>
+  <script src="/__offox/offox.js"></script>
+  <script src="assets/util.js"></script>
+  <script src="assets/store.js"></script>
+  <script>
+    (async () => {
+      Store.layout();
+      let form = $("#form");
+      for (let c of CATEGORIES) $("#category").append(h("option", { value: c }, c));
+      for (let p of PLATFORMS) $("#platforms").append(h("label", {}, h("input", { type: "checkbox", name: "platforms", value: p }), " " + p));
+      let id = param("id");
+      let app = id ? (await Store.apps()).find(a => a.id === id) : null;
+      if (app) {
+        $("#heading").textContent = `Edit ${app.name}`;
+        for (let k of ["name", "version", "publisher", "license", "category", "homepage", "description"]) if (app[k]) form.elements[k].value = app[k];
+        $$("input[name=platforms]").forEach(cb => (cb.checked = app.platforms.includes(cb.value)));
+        let render = () => $("#existing").replaceChildren(h("b", {}, "Current files"), ...app.files.map(f => h("div", { class: "queue" }, h("div", { class: "row" },
+          h("span", { style: { flex: 1 } }, f.name),
+          h("input", { type: "text", value: f.platform || "", placeholder: "Platform", onchange: e => (f.platform = e.target.value) }),
+          h("button", { type: "button", class: "btn danger", onclick: async () => {
+            if (!confirm(`Delete ${f.name}?`)) return;
+            await Offox.remove(`apps/${app.id}/files/${f.name}`);
+            app.files = app.files.filter(x => x !== f);
+            await Offox.writeJSON(`apps/${app.id}/app.json`, app);
+            render();
+          } }, "Delete")))));
+        render();
+      }
+      form.addEventListener("submit", async e => {
+        e.preventDefault();
+        $("#save").disabled = true;
+        let data = new FormData(form);
+        let appId = app ? app.id : slugify(data.get("name")).toLowerCase() + "-" + Offox.id(4);
+        let record = app || { id: appId, created: new Date().toISOString(), files: [], screenshots: [] };
+        for (let k of ["name", "version", "publisher", "license", "category", "homepage", "description"]) record[k] = data.get(k).trim();
+        record.platforms = data.getAll("platforms");
+        record.updated = new Date().toISOString();
+        let dir = `apps/${appId}`;
+        await Offox.mkdir(`${dir}/files`);
+        let copy = async (file, path) => {
+          let bar = h("progress", { max: 1, value: 0 });
+          $("#queue").append(h("div", { class: "row" }, h("span", {}, file.name), bar));
+          await Offox.upload(path, file, { onProgress: v => (bar.value = v) });
+        };
+        let icon = data.get("icon");
+        if (icon && icon.size) {
+          record.icon = "icon." + (extOf(icon.name) || "png");
+          await copy(icon, `${dir}/${record.icon}`);
+        }
+        for (let shot of data.getAll("screenshots").filter(f => f.size)) {
+          let name = slugify(shot.name);
+          await copy(shot, `${dir}/screenshots/${name}`);
+          if (!record.screenshots.includes(name)) record.screenshots.push(name);
+        }
+        for (let file of data.getAll("files").filter(f => f.size)) {
+          let name = slugify(file.name);
+          await copy(file, `${dir}/files/${name}`);
+          if (!record.files.some(f => f.name === name)) {
+            let ext = extOf(name);
+            let platform = ["exe", "msi", "msix", "appx"].includes(ext) ? "Windows" : ["rpm", "deb", "appimage", "flatpak", "sh"].includes(ext) ? "Linux" : ["dmg", "pkg"].includes(ext) ? "macOS" : ext === "apk" ? "Android" : "";
+            record.files.push({ name, platform });
+          }
+        }
+        await Offox.writeJSON(`${dir}/app.json`, record);
+        location.href = `app.html?id=${encodeURIComponent(appId)}`;
+      });
+    })();
+  </script>
+</body>
+</html>

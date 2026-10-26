@@ -1,0 +1,13 @@
+{
+  "id": "library",
+  "name": "Document library",
+  "icon": "📖",
+  "description": "A bookshelf for e-books, PDFs, manuals and papers, with authors, tags, a built-in reader for text and PDF, and reading progress.",
+  "defaultTitle": "Library",
+  "defaultDomain": "library.books",
+  "shared": ["util.js", "md.js", "ui.css"],
+  "directories": ["books"],
+  "searchRules": [
+    { "type": "folders", "dir": "books", "json": "book.json", "titleKey": "title", "textKeys": ["author", "description", "tags", "year"], "url": "/book.html?id={name}", "kind": "book" }
+  ]
+}

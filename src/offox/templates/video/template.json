@@ -1,0 +1,14 @@
+{
+  "id": "video",
+  "name": "Video sharing",
+  "icon": "▶️",
+  "description": "A YouTube-style site: upload videos with descriptions, a home page with every video, playlists, and a player that converts formats Firefox can't play.",
+  "defaultTitle": "OffTube",
+  "defaultDomain": "youtube.com",
+  "shared": ["util.js", "ui.css"],
+  "directories": ["videos", "playlists"],
+  "searchRules": [
+    { "type": "folders", "dir": "videos", "url": "/watch.html?v={name}", "title": "title.txt", "text": ["description.txt"], "kind": "video" },
+    { "type": "files", "dir": "playlists", "ext": ".json", "url": "/playlist.html?id={stem}", "kind": "playlist" }
+  ]
+}

@@ -1,0 +1,8 @@
+:root { color-scheme: light dark; }
+body { margin: 0; font: 17px/1.6 system-ui, sans-serif; background: Canvas; color: CanvasText; }
+main { max-width: 720px; margin: 0 auto; padding: 48px 20px; }
+h1 { font-size: 42px; margin-bottom: 0; }
+pre, code { background: #8882; border-radius: 6px; }
+pre { padding: 14px; overflow-x: auto; }
+code { padding: 1px 5px; }
+button { font: inherit; padding: 8px 16px; border-radius: 8px; border: 1px solid #8886; background: transparent; color: inherit; cursor: pointer; }

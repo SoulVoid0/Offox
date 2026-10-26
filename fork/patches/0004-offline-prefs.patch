@@ -1,0 +1,11 @@
+diff --git a/browser/app/profile/firefox.js b/browser/app/profile/firefox.js
+index d55a5b05..c3eb9ac1 100644
+--- a/browser/app/profile/firefox.js
++++ b/browser/app/profile/firefox.js
+@@ -3630,3 +3630,6 @@ pref("distribution.mozillaonline.ignore", true);
+ #ifdef XP_MACOSX
+   pref("browser.macAppMenu.setAsDefaultShown", false);
+ #endif
++
++// Offox: offline lockdown, FireLine home page.
++#include offox-prefs.js

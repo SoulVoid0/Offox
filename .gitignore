@@ -1,0 +1,8 @@
+node_modules/
+dist/
+dev/.firefox/
+dev/.profile/
+installer/windows/ffmpeg/*
+!installer/windows/ffmpeg/README.txt
+obj-*/
+*.pyc

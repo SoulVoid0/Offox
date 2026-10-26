@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src chrome: 'self'; img-src chrome: 'self' data:; style-src chrome: 'self' 'unsafe-inline'; object-src 'none'">
+  <title>Offox settings</title>
+  <link rel="icon" href="offox.svg">
+  <link rel="stylesheet" href="settings.css">
+  <script type="module" src="settings.js"></script>
+</head>
+<body>
+  <aside class="nav">
+    <div class="brand"><img src="offox.svg" alt=""><span>Offox</span></div>
+    <nav>
+      <a href="#storage" data-section="storage">Storage folders</a>
+      <a href="#sites" data-section="sites">Websites</a>
+      <a href="#create" data-section="create">Create a website</a>
+      <a href="#video" data-section="video">Video formats</a>
+      <a href="#offline" data-section="offline">Offline &amp; install</a>
+    </nav>
+    <a class="fireline-link" href="https://fireline.offox/" target="_blank">Open FireLine ↗</a>
+  </aside>
+
+  <main>
+    <section id="welcome" hidden>
+      <h1>Welcome to Offox</h1>
+      <p>Offox never goes on the internet. Your websites live in folders on this
+        computer or on an external drive. Choose a storage folder to begin; Offox
+        will create a few websites in it to start you off: a video site at
+        <code>youtube.com</code>, an encyclopedia at <code>wikipedia.org</code>, a software
+        store and Docs, Sheets and Slides.</p>
+      <div class="row">
+        <button class="primary" id="welcome-default">Use <span id="welcome-default-path"></span></button>
+        <button id="welcome-choose">Choose another folder…</button>
+      </div>
+    </section>
+
+    <section id="storage">
+      <h2>Storage folders</h2>
+      <p class="hint">Each website is a folder inside one of these. If two folders contain a
+        website with the same address, the one higher in the list wins.</p>
+      <ul class="list" id="root-list"></ul>
+      <form class="row add-root" id="add-root-form">
+        <input id="add-root-path" type="text" placeholder="Folder path, e.g. /run/media/me/USB/Sites or E:\Sites" aria-label="Folder path">
+        <button type="button" id="add-root-choose">Choose folder…</button>
+        <button type="submit" class="primary">Add</button>
+      </form>
+    </section>
+
+    <section id="sites">
+      <h2>Websites</h2>
+      <p class="hint">Search all of them with <a href="https://fireline.offox/" target="_blank">FireLine</a>.</p>
+      <div class="cards" id="site-list"></div>
+    </section>
+
+    <section id="create">
+      <h2>Create a website</h2>
+      <p class="hint">Pick a template. Every website is plain HTML, CSS and JavaScript in its
+        own folder, so you can change anything afterwards with any editor.</p>
+      <div class="templates" id="template-list"></div>
+      <form id="create-form" class="panel" hidden>
+        <h3 id="create-heading"></h3>
+        <label>Address
+          <span class="address"><span>https://</span><input id="create-domain" required placeholder="my-site.com" autocomplete="off"></span>
+        </label>
+        <label>Title <input id="create-title" required></label>
+        <label>Description <textarea id="create-description" rows="2"></textarea></label>
+        <label>Storage folder <select id="create-root"></select></label>
+        <p class="error" id="create-error" hidden></p>
+        <div class="row end">
+          <button type="button" id="create-cancel">Cancel</button>
+          <button type="submit" class="primary">Create website</button>
+        </div>
+      </form>
+    </section>
+
+    <section id="video">
+      <h2>Video formats</h2>
+      <p>Offox plays MP4 (H.264, H.265/HEVC, AV1), WebM (VP8, VP9, AV1), Matroska (MKV), Ogg,
+        MP3, AAC, FLAC, Opus and WAV directly. Other formats (AVI, WMV, FLV, MPEG, MOV with old
+        codecs, 3GP, DivX/Xvid, MPEG-TS…) are converted with <strong>FFmpeg</strong> when you
+        upload them: the picture and sound are copied without loss when possible and re-encoded
+        otherwise.</p>
+      <div class="panel" id="ffmpeg-status"></div>
+      <form class="row" id="ffmpeg-form">
+        <input id="ffmpeg-path" type="text" placeholder="Path to ffmpeg (leave empty to find it automatically)" aria-label="FFmpeg path">
+        <button type="button" id="ffmpeg-choose">Choose…</button>
+        <button type="submit">Save</button>
+      </form>
+    </section>
+
+    <section id="offline">
+      <h2>Offline &amp; install</h2>
+      <dl class="facts" id="offline-facts"></dl>
+    </section>
+  </main>
+
+  <dialog id="edit-dialog">
+    <form method="dialog" class="dialog-form" id="edit-form">
+      <h3>Edit website</h3>
+      <label>Address <span class="address"><span>https://</span><input id="edit-domain" required></span></label>
+      <label>Other addresses (comma separated) <input id="edit-aliases" placeholder="www.example.com, example.net"></label>
+      <label>Title <input id="edit-title" required></label>
+      <label>Description <textarea id="edit-description" rows="2"></textarea></label>
+      <p class="error" id="edit-error" hidden></p>
+      <div class="row end">
+        <button value="cancel" formnovalidate>Cancel</button>
+        <button value="save" class="primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="delete-dialog">
+    <form method="dialog" class="dialog-form">
+      <h3>Delete website?</h3>
+      <p>This deletes the folder <code id="delete-folder"></code> and everything in it
+        (videos, documents, pages). To confirm, type <strong id="delete-domain"></strong>.</p>
+      <input id="delete-confirm" autocomplete="off" aria-label="Type the address to confirm">
+      <div class="row end">
+        <button value="cancel">Cancel</button>
+        <button value="delete" class="danger" id="delete-button" disabled>Delete</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

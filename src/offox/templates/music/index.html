@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{SITE_TITLE}}</title>
+  <meta name="description" content="{{SITE_DESCRIPTION}}">
+  <link rel="stylesheet" href="assets/ui.css">
+  <link rel="stylesheet" href="assets/music.css">
+</head>
+<body>
+  <nav class="side" id="side"></nav>
+  <main id="main"></main>
+  <footer class="player">
+    <div class="now" id="now"><div class="art">♪</div><div><b>Nothing playing</b><small>Choose a song</small></div></div>
+    <div class="controls">
+      <div class="buttons">
+        <button id="shuffle" title="Shuffle">🔀</button>
+        <button id="prev" title="Previous">⏮</button>
+        <button id="play" class="play" title="Play/Pause">▶</button>
+        <button id="next" title="Next">⏭</button>
+        <button id="repeat" title="Repeat">🔁</button>
+      </div>
+      <div class="seek"><span id="cur">0:00</span><input type="range" id="seek" min="0" max="1000" value="0"><span id="dur">0:00</span></div>
+    </div>
+    <div class="volume">🔊 <input type="range" id="volume" min="0" max="1" step="0.01" value="1"></div>
+  </footer>
+  <audio id="audio" preload="auto"></audio>
+  <script src="/__offox/offox.js"></script>
+  <script src="assets/util.js"></script>
+  <script>
+    "use strict";
+    /* Music – tracks/<id>/ holds the audio file, track.json {title, artist, album, genre, file, converted, duration, created}
+     * and an optional cover.jpg. playlists/<id>.json = {id, name, tracks: [ids]}. */
+    const SITE_TITLE = "{{SITE_TITLE}}";
+    let tracks = [], playlists = [], queue = [], qIndex = -1, shuffle = false, repeat = false;
+    let view = { name: "songs" };
+    const audio = $("#audio");
+
+    async function load() {
+      let items = await Offox.collect("tracks", ["track.json"]);
+      tracks = items.map(item => {
+        let t = {};
+        try { t = JSON.parse(item.files["track.json"] || "{}"); } catch (e) {}
+        let names = item.entries.map(e => e.name);
+        let file = t.converted && names.includes(t.converted) ? t.converted : t.file && names.includes(t.file) ? t.file : names.find(n => AUDIO_EXT.includes(extOf(n)) || VIDEO_EXT.includes(extOf(n)));
+        if (!file) return null;
+        return { id: item.name, title: t.title || file.replace(/\.[^.]+$/, ""), artist: t.artist || "Unknown artist", album: t.album || "Unknown album",
+          genre: t.genre || "", duration: t.duration || 0, created: t.created || new Date(item.modified).toISOString(), file, original: t.file || file,
+          cover: names.includes("cover.jpg") ? Offox.url(`tracks/${item.name}/cover.jpg`) : null, meta: t };
+      }).filter(Boolean);
+      playlists = [];
+      for (let e of await Offox.list("playlists")) {
+        if (e.name.endsWith(".json")) try { playlists.push(await Offox.readJSON(`playlists/${e.name}`)); } catch (err) {}
+      }
+      playlists.sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    function sidebar() {
+      let btn = (label, v) => h("button", { class: JSON.stringify(view) === JSON.stringify(v) ? "active" : "", onclick: () => { view = v; render(); } }, label);
+      $("#side").replaceChildren(
+        h("div", { class: "brand" }, "🎵 " + SITE_TITLE),
+        btn("🎶 Songs", { name: "songs" }), btn("🎤 Artists", { name: "artists" }), btn("💿 Albums", { name: "albums" }), btn("⬆ Add music", { name: "upload" }),
+        h("h4", {}, "Playlists"),
+        playlists.map(p => btn("≡ " + p.name, { name: "playlist", id: p.id })),
+        h("button", { onclick: newPlaylist }, "＋ New playlist"));
+    }
+
+    async function newPlaylist() {
+      let data = await dialogForm("New playlist", [{ name: "name", label: "Name", required: true }], { submit: "Create" });
+      if (!data || !data.name.trim()) return;
+      let p = { id: Offox.id(8), name: data.name.trim(), created: new Date().toISOString(), tracks: [] };
+      await Offox.writeJSON(`playlists/${p.id}.json`, p);
+      playlists.push(p);
+      view = { name: "playlist", id: p.id };
+      render();
+    }
+
+    function songTable(list, { playlist } = {}) {
+      let current = queue[qIndex];
+      return h("table", {},
+        h("thead", {}, h("tr", {}, h("th", {}, "#"), h("th", {}, "Title"), h("th", {}, "Artist"), h("th", {}, "Album"), h("th", {}, "⏱"), h("th", {}))),
+        h("tbody", {}, list.map((t, i) => h("tr", { class: "track" + (current && current.id === t.id ? " playing" : ""), ondblclick: () => playList(list, i) },
+          h("td", { class: "num" }, i + 1),
+          h("td", {}, t.title),
+          h("td", {}, h("a", { href: "#", onclick: e => { e.preventDefault(); view = { name: "artist", value: t.artist }; render(); } }, t.artist)),
+          h("td", {}, h("a", { href: "#", onclick: e => { e.preventDefault(); view = { name: "album", value: t.album }; render(); } }, t.album)),
+          h("td", {}, formatDuration(t.duration)),
+          h("td", { class: "act" },
+            h("button", { title: "Play", onclick: () => playList(list, i) }, "▶"),
+            h("button", { title: "Add to playlist", onclick: () => addToPlaylist(t) }, "＋"),
+            playlist ? h("button", { title: "Remove from playlist", onclick: async () => {
+              playlist.tracks = playlist.tracks.filter(x => x !== t.id);
+              await Offox.writeJSON(`playlists/${playlist.id}.json`, playlist);
+              render();
+            } }, "✕") : h("button", { title: "Edit", onclick: () => editTrack(t) }, "✎"))))));
+    }
+
+    async function addToPlaylist(t) {
+      if (!playlists.length) return toast("Create a playlist first (sidebar).");
+      let data = await dialogForm(`Add “${t.title}” to…`, [{ name: "pl", label: "Playlist", type: "select", options: playlists.map(p => ({ value: p.id, label: p.name })), value: playlists[0].id }], { submit: "Add" });
+      if (!data) return;
+      let p = playlists.find(x => x.id === data.pl);
+      if (!p.tracks.includes(t.id)) p.tracks.push(t.id);
+      await Offox.writeJSON(`playlists/${p.id}.json`, p);
+      toast(`Added to ${p.name}`);
+    }
+
+    async function editTrack(t) {
+      let data = await dialogForm("Edit song", [
+        { name: "title", label: "Title", value: t.title }, { name: "artist", label: "Artist", value: t.artist },
+        { name: "album", label: "Album", value: t.album }, { name: "genre", label: "Genre", value: t.genre }]);
+      if (!data) return;
+      if (data.delete) return;
+      Object.assign(t.meta, data);
+      await Offox.writeJSON(`tracks/${t.id}/track.json`, t.meta);
+      await load();
+      render();
+    }
+
+    function cards(groups, onOpen) {
+      return h("div", { class: "cards" }, groups.map(g => h("div", { class: "card", onclick: () => onOpen(g) },
+        h("div", { class: "art" }, g.cover ? h("img", { src: g.cover, alt: "" }) : g.icon), h("b", {}, g.name), h("small", {}, g.sub))));
+    }
+
+    function groupBy(key, icon) {
+      let map = new Map();
+      for (let t of tracks) {
+        if (!map.has(t[key])) map.set(t[key], []);
+        map.get(t[key]).push(t);
+      }
+      return [...map].sort((a, b) => a[0].localeCompare(b[0])).map(([name, list]) => ({ name, list, icon, cover: list.find(t => t.cover)?.cover,
+        sub: key === "album" ? list[0].artist : plural(list.length, "song") }));
+    }
+
+    function render() {
+      sidebar();
+      let main = $("#main");
+      main.textContent = "";
+      if (view.name === "songs") {
+        let filter = h("input", { placeholder: "Search songs, artists, albums", value: view.q || "", oninput: e => { view.q = e.target.value; draw(); } });
+        let table = h("div");
+        let draw = () => {
+          let q = (view.q || "").toLowerCase();
+          let list = tracks.filter(t => !q || `${t.title} ${t.artist} ${t.album} ${t.genre}`.toLowerCase().includes(q)).sort((a, b) => a.artist.localeCompare(b.artist) || a.album.localeCompare(b.album) || a.title.localeCompare(b.title));
+          table.replaceChildren(list.length ? songTable(list) : h("p", { class: "empty" }, tracks.length ? "No matching songs." : "Your library is empty. Use “Add music” to copy songs in."));
+        };
+        main.append(h("h1", {}, "Songs"), h("div", { class: "tools" },
+          h("button", { class: "btn primary", onclick: () => playList(tracks, 0) }, "▶ Play all"),
+          h("button", { class: "btn", onclick: () => { shuffle = true; $("#shuffle").classList.add("on"); playList(tracks, Math.floor(Math.random() * tracks.length)); } }, "🔀 Shuffle"), filter), table);
+        draw();
+        return;
+      }
+      if (view.name === "artists") {
+        main.append(h("h1", {}, "Artists"), cards(groupBy("artist", "🎤"), g => { view = { name: "artist", value: g.name }; render(); }));
+        return;
+      }
+      if (view.name === "albums") {
+        main.append(h("h1", {}, "Albums"), cards(groupBy("album", "💿"), g => { view = { name: "album", value: g.name }; render(); }));
+        return;
+      }
+      if (view.name === "artist" || view.name === "album") {
+        let list = tracks.filter(t => t[view.name] === view.value);
+        main.append(h("h1", {}, view.value), h("div", { class: "tools" }, h("button", { class: "btn primary", onclick: () => playList(list, 0) }, "▶ Play")), songTable(list));
+        return;
+      }
+      if (view.name === "playlist") {
+        let p = playlists.find(x => x.id === view.id);
+        if (!p) { view = { name: "songs" }; return render(); }
+        let list = p.tracks.map(id => tracks.find(t => t.id === id)).filter(Boolean);
+        main.append(h("h1", {}, p.name), h("div", { class: "tools" },
+          h("button", { class: "btn primary", onclick: () => playList(list, 0) }, "▶ Play"),
+          h("button", { class: "btn", onclick: async () => {
+            if (!confirm(`Delete playlist “${p.name}”?`)) return;
+            await Offox.remove(`playlists/${p.id}.json`);
+            playlists = playlists.filter(x => x !== p);
+            view = { name: "songs" };
+            render();
+          } }, "Delete playlist")), list.length ? songTable(list, { playlist: p }) : h("p", { class: "empty" }, "Add songs with the ＋ button in the song list."));
+        return;
+      }
+      if (view.name === "upload") {
+        let input = h("input", { type: "file", multiple: true, accept: "audio/*,.flac,.opus,.ogg,.wma,.m4a", hidden: true });
+        let drop = h("label", { class: "drop" }, h("b", {}, "Drop music files here or click to choose"), h("br"), "Names like “Artist - Title.mp3” are filled in automatically.", input);
+        let log = h("div");
+        main.append(h("h1", {}, "Add music"), drop, log);
+        let add = async files => {
+          let media = await Offox.media.info().catch(() => ({ ffmpeg: false }));
+          for (let f of files) {
+            let row = h("p", {}, `${f.name} `);
+            let bar = h("progress", { max: 1, value: 0 });
+            row.append(bar);
+            log.append(row);
+            let id = Offox.id();
+            let ext = extOf(f.name) || "mp3";
+            let base = f.name.replace(/\.[^.]+$/, "").replace(/^\d+[\s.-]+/, "");
+            let [artist, title] = base.includes(" - ") ? base.split(" - ", 2) : ["", base];
+            let duration = await new Promise(r => { let a = new Audio(); a.preload = "metadata"; a.onloadedmetadata = () => r(a.duration); a.onerror = () => r(0); a.src = URL.createObjectURL(f); setTimeout(() => r(0), 8000); });
+            await Offox.upload(`tracks/${id}/track.${ext}`, f, { onProgress: v => (bar.value = v) });
+            let meta = { title: title.trim(), artist: artist.trim(), album: "", genre: "", file: `track.${ext}`, duration, created: new Date().toISOString() };
+            await Offox.writeJSON(`tracks/${id}/track.json`, meta);
+            if (!duration && media.ffmpeg) {
+              row.append(" converting…");
+              try {
+                let job = await Offox.media.convertAndWait(`tracks/${id}/track.${ext}`, { onProgress: v => (bar.value = v) });
+                meta.converted = job.outputName;
+                await Offox.writeJSON(`tracks/${id}/track.json`, meta);
+              } catch (e) { row.append(" (conversion failed: " + e.message + ")"); }
+            }
+            row.append(" ✓");
+          }
+          await load();
+          toast("Songs added");
+        };
+        input.addEventListener("change", () => add([...input.files]));
+        drop.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add("over"); });
+        drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+        drop.addEventListener("drop", e => { e.preventDefault(); drop.classList.remove("over"); add([...e.dataTransfer.files]); });
+      }
+    }
+
+    // ---------------- player
+    function playList(list, index) {
+      if (!list.length) return;
+      queue = list.slice();
+      qIndex = index;
+      start();
+    }
+    function start() {
+      let t = queue[qIndex];
+      if (!t) return;
+      audio.src = Offox.url(`tracks/${t.id}/${t.file}`);
+      audio.play().catch(() => {});
+      $("#now").replaceChildren(h("div", { class: "art" }, t.cover ? h("img", { src: t.cover, alt: "" }) : "♪"), h("div", {}, h("b", {}, t.title), h("small", {}, t.artist)));
+      document.title = `${t.title} · ${t.artist} – ${SITE_TITLE}`;
+      $$("tr.track").forEach(r => r.classList.remove("playing"));
+      if ("mediaSession" in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title: t.title, artist: t.artist, album: t.album });
+    }
+    function step(delta) {
+      if (!queue.length) return;
+      if (shuffle && delta > 0) qIndex = Math.floor(Math.random() * queue.length);
+      else qIndex = (qIndex + delta + queue.length) % queue.length;
+      start();
+    }
+    $("#play").onclick = () => (audio.src ? (audio.paused ? audio.play() : audio.pause()) : playList(tracks, 0));
+    $("#next").onclick = () => step(1);
+    $("#prev").onclick = () => (audio.currentTime > 3 ? (audio.currentTime = 0) : step(-1));
+    $("#shuffle").onclick = e => { shuffle = !shuffle; e.currentTarget.classList.toggle("on", shuffle); };
+    $("#repeat").onclick = e => { repeat = !repeat; e.currentTarget.classList.toggle("on", repeat); };
+    $("#volume").oninput = e => (audio.volume = e.target.value);
+    $("#seek").oninput = e => { if (audio.duration) audio.currentTime = (e.target.value / 1000) * audio.duration; };
+    audio.addEventListener("play", () => ($("#play").textContent = "⏸"));
+    audio.addEventListener("pause", () => ($("#play").textContent = "▶"));
+    audio.addEventListener("timeupdate", () => {
+      $("#cur").textContent = formatDuration(audio.currentTime) || "0:00";
+      $("#dur").textContent = formatDuration(audio.duration) || "0:00";
+      if (audio.duration) $("#seek").value = (audio.currentTime / audio.duration) * 1000;
+    });
+    audio.addEventListener("ended", () => (repeat && !shuffle && qIndex === queue.length - 1 ? ((qIndex = -1), step(1)) : qIndex < queue.length - 1 || shuffle ? step(1) : null));
+    audio.addEventListener("error", () => toast("This song can't be played. If FFmpeg is installed, re-add it to convert it."));
+    if ("mediaSession" in navigator) {
+      navigator.mediaSession.setActionHandler("nexttrack", () => step(1));
+      navigator.mediaSession.setActionHandler("previoustrack", () => step(-1));
+    }
+
+    load().then(() => {
+      render();
+      let want = param("track");
+      let i = tracks.findIndex(t => t.id === want);
+      if (i >= 0) playList(tracks, i);
+    });
+  </script>
+</body>
+</html>

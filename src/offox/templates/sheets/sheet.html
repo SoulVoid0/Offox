@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Spreadsheet – {{SITE_TITLE}}</title>
+  <meta name="fireline" content="noindex">
+  <link rel="stylesheet" href="assets/ui.css">
+  <link rel="stylesheet" href="assets/sheets.css">
+</head>
+<body>
+  <div class="top">
+    <a class="logo" href="./" title="All spreadsheets">▦</a>
+    <input class="title" id="title" aria-label="Spreadsheet title">
+    <span class="status" id="status"></span>
+    <span class="spacer"></span>
+    <label class="btn">⬆ Import CSV<input type="file" id="import" accept=".csv,.tsv,.txt" hidden></label>
+    <button class="btn" id="export">⬇ Export CSV</button>
+  </div>
+  <div class="toolbar" id="toolbar"></div>
+  <div class="fbar"><span class="name" id="cellname">A1</span><span class="fx">fx</span><input id="formula" aria-label="Formula"></div>
+  <div class="gridwrap" id="gridwrap"></div>
+  <div class="tabs" id="tabs"><span class="sum" id="sum"></span></div>
+  <script src="/__offox/offox.js"></script>
+  <script src="assets/util.js"></script>
+  <script src="assets/formula.js"></script>
+  <script src="assets/sheet-app.js"></script>
+</body>
+</html>

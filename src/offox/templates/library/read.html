@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{SITE_TITLE}}</title>
+  <meta name="fireline" content="noindex">
+  <link rel="stylesheet" href="assets/library.css">
+</head>
+<body>
+  <div class="reader-bar"><a href="./">← Library</a><b id="title"></b><span class="spacer"></span>
+    <button class="btn" id="smaller">A−</button><button class="btn" id="bigger">A+</button><span id="pct"></span></div>
+  <main><article class="reader" id="reader"></article></main>
+  <script src="/__offox/offox.js"></script>
+  <script src="assets/util.js"></script>
+  <script src="assets/md.js"></script>
+  <script src="assets/library.js"></script>
+  <script>
+    (async () => {
+      let b = (await Library.books()).find(x => x.id === param("id"));
+      if (!b) return;
+      document.title = b.title;
+      $("#title").textContent = b.title;
+      let text = await Offox.readText(`books/${b.id}/${b.file}`);
+      let ext = extOf(b.file);
+      let reader = $("#reader");
+      if (ext === "md") reader.innerHTML = Markdown.render(text).html;
+      else if (ext === "html" || ext === "htm") {
+        let doc = new DOMParser().parseFromString(text, "text/html");
+        doc.querySelectorAll("script, style, iframe, object").forEach(n => n.remove());
+        reader.append(...doc.body.childNodes);
+      } else reader.append(h("pre", {}, text));
+      let size = Number(localStorage.getItem("reader-size")) || 19;
+      let apply = () => { document.documentElement.style.setProperty("--size", size + "px"); localStorage.setItem("reader-size", size); };
+      $("#smaller").onclick = () => { size = Math.max(12, size - 1); apply(); };
+      $("#bigger").onclick = () => { size = Math.min(34, size + 1); apply(); };
+      apply();
+      let saved = Library.progress(b.id);
+      requestAnimationFrame(() => scrollTo(0, saved * (document.documentElement.scrollHeight - innerHeight)));
+      addEventListener("scroll", () => {
+        let p = scrollY / Math.max(1, document.documentElement.scrollHeight - innerHeight);
+        $("#pct").textContent = Math.round(p * 100) + "%";
+        localStorage.setItem("read:" + b.id, p.toFixed(4));
+      }, { passive: true });
+    })();
+  </script>
+</body>
+</html>

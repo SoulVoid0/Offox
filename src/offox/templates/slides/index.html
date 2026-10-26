@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{SITE_TITLE}}</title>
+  <meta name="description" content="{{SITE_DESCRIPTION}}">
+  <link rel="stylesheet" href="assets/ui.css">
+  <link rel="stylesheet" href="assets/slides.css">
+</head>
+<body>
+  <header class="home-top"><div class="brand"><span class="logo">▭</span>{{SITE_TITLE}}</div><input id="q" placeholder="Search presentations"></header>
+  <div class="wrap">
+    <h3>Start a new presentation</h3>
+    <div class="decks" id="new"></div>
+    <h3>Recent presentations</h3>
+    <div class="decks" id="list"></div>
+  </div>
+  <script src="/__offox/offox.js"></script>
+  <script src="assets/util.js"></script>
+  <script src="assets/slides.js"></script>
+  <script>
+    (async () => {
+      let create = async theme => {
+        let id = Offox.id(10);
+        let now = new Date().toISOString();
+        let first = Slides.newSlide("title");
+        await Offox.writeJSON(`presentations/${id}/deck.json`, { theme, slides: [first] });
+        await Offox.writeJSON(`presentations/${id}/meta.json`, { title: "Untitled presentation", created: now, updated: now, text: "" });
+        location.href = `deck.html?id=${id}`;
+      };
+      for (let [theme, name] of Object.entries(THEMES)) {
+        let sample = { elements: [{ type: "text", x: 80, y: 190, w: 800, h: 110, html: name, size: 64, bold: true, align: "center" }] };
+        $("#new").append(h("div", { class: "deck-card", style: { cursor: "pointer" }, onclick: () => create(theme) },
+          h("div", { class: "thumb" }, Slides.scaled(sample, { theme }, 230)), h("div", { class: "info" }, h("b", {}, name + " theme"))));
+      }
+      let items = await Offox.collect("presentations", ["meta.json", "deck.json"]);
+      let decks = items.map(i => {
+        let m = {}, d = null;
+        try { m = JSON.parse(i.files["meta.json"] || "{}"); d = JSON.parse(i.files["deck.json"] || "null"); } catch (e) {}
+        return { id: i.name, title: m.title || "Untitled presentation", updated: m.updated || new Date(i.modified).toISOString(), text: m.text || "", deck: d };
+      }).filter(x => x.deck).sort((a, b) => new Date(b.updated) - new Date(a.updated));
+      let render = () => {
+        let q = $("#q").value.toLowerCase();
+        let shown = decks.filter(x => (x.title + " " + x.text).toLowerCase().includes(q));
+        $("#list").replaceChildren(...shown.map(x => h("div", { class: "deck-card" },
+          h("a", { href: `deck.html?id=${encodeURIComponent(x.id)}` },
+            h("div", { class: "thumb" }, x.deck.slides[0] ? Slides.scaled(x.deck.slides[0], x.deck, 230, { dir: `presentations/${x.id}` }) : null),
+            h("div", { class: "info" }, h("b", {}, x.title), h("small", {}, `${plural(x.deck.slides.length, "slide")} · ${timeAgo(x.updated)}`))),
+          h("button", { class: "del", title: "Delete", onclick: async () => { if (!confirm(`Delete “${x.title}”?`)) return; await Offox.remove(`presentations/${x.id}`); decks = decks.filter(y => y !== x); render(); } }, "🗑"))));
+        if (!shown.length) $("#list").append(h("p", { style: { color: "var(--muted)" } }, decks.length ? "Nothing matches." : "No presentations yet."));
+      };
+      $("#q").oninput = render;
+      render();
+    })();
+  </script>
+</body>
+</html>

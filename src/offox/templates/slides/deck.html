@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Presentation – {{SITE_TITLE}}</title>
+  <meta name="fireline" content="noindex">
+  <link rel="stylesheet" href="assets/ui.css">
+  <link rel="stylesheet" href="assets/slides.css">
+</head>
+<body>
+  <div class="top">
+    <a class="logo" href="./" title="All presentations">▭</a>
+    <input class="title" id="title" aria-label="Presentation title">
+    <span class="status" id="status"></span>
+    <span class="spacer"></span>
+    <button class="btn" id="pdf">🖨 Print / PDF</button>
+    <button class="btn primary" id="present">▶ Present</button>
+  </div>
+  <div class="toolbar no-el" id="toolbar"></div>
+  <div class="main">
+    <div class="strip" id="strip"></div>
+    <div class="stage-area">
+      <div class="stage-wrap" id="stage-wrap"></div>
+      <textarea class="notes" id="notes" placeholder="Click to add speaker notes"></textarea>
+    </div>
+  </div>
+  <div id="print-area" class="print-deck" hidden></div>
+  <script src="/__offox/offox.js"></script>
+  <script src="assets/util.js"></script>
+  <script src="assets/slides.js"></script>
+  <script>
+    (async () => {
+      const id = param("id");
+      const dir = `presentations/${id}`;
+      let meta = await Offox.readJSON(`${dir}/meta.json`, null);
+      let deck = await Offox.readJSON(`${dir}/deck.json`, null);
+      if (!meta || !deck) { document.body.textContent = "Presentation not found."; return; }
+      let current = 0, selected = null;
+      let undo = [], redo = [];
+      let snapshot = () => { undo.push(JSON.stringify(deck)); if (undo.length > 80) undo.shift(); redo = []; };
+      let slide = () => deck.slides[current];
+
+      // ------------------------------------------------ stage
+      let stageWrap = $("#stage-wrap");
+      let stageSlide;
+      function stageWidth() {
+        let r = stageWrap.getBoundingClientRect();
+        return Math.max(320, Math.min(r.width - 32, (r.height - 32) * 16 / 9));
+      }
+      function renderStage() {
+        let width = stageWidth();
+        let box = Slides.scaled(slide(), deck, width, { dir, editable: true });
+        box.classList.add("editing");
+        stageSlide = box.firstChild;
+        stageWrap.replaceChildren(box);
+        stageSlide.querySelectorAll(".el").forEach(node => wire(node, +node.dataset.i, width / 960));
+        stageSlide.addEventListener("mousedown", e => { if (e.target === stageSlide || e.target.classList.contains("accentbar")) select(null); });
+        $("#notes").value = slide().notes || "";
+        if (selected !== null) markSelected();
+      }
+      function wire(node, i, scale) {
+        let el = slide().elements[i];
+        node.addEventListener("mousedown", e => {
+          if (node.isContentEditable) return;
+          e.preventDefault();
+          select(i);
+          let sx = e.clientX, sy = e.clientY, ox = el.x, oy = el.y, moved = false;
+          let mv = ev => {
+            if (!moved) { snapshot(); moved = true; }
+            el.x = Math.round(ox + (ev.clientX - sx) / scale);
+            el.y = Math.round(oy + (ev.clientY - sy) / scale);
+            node.style.left = el.x + "px"; node.style.top = el.y + "px";
+          };
+          let up = () => { removeEventListener("mousemove", mv); removeEventListener("mouseup", up); if (moved) { changed(); renderStrip(); } };
+          addEventListener("mousemove", mv);
+          addEventListener("mouseup", up);
+        });
+        if (el.type === "text") {
+          node.addEventListener("dblclick", () => {
+            node.contentEditable = "true";
+            node.classList.remove("placeholder");
+            node.focus();
+            document.getSelection().selectAllChildren(node);
+          });
+          node.addEventListener("input", () => { el.html = node.innerHTML; changed(); });
+          node.addEventListener("blur", () => { node.contentEditable = "false"; el.html = node.innerHTML.replace(/^<br>$/, ""); if (!el.html && el.placeholder) node.classList.add("placeholder"); renderStrip(); });
+          node.addEventListener("keydown", e => { if (e.key === "Escape") node.blur(); e.stopPropagation(); });
+        }
+        let handle = h("div", { class: "handle" });
+        handle.addEventListener("mousedown", e => {
+          e.preventDefault(); e.stopPropagation();
+          snapshot();
+          let sx = e.clientX, sy = e.clientY, ow = el.w, oh = el.h;
+          let ratio = el.type === "image" && e.shiftKey === false ? oh / ow : null;
+          let mv = ev => {
+            el.w = Math.max(20, Math.round(ow + (ev.clientX - sx) / scale));
+            el.h = ratio ? Math.round(el.w * ratio) : Math.max(20, Math.round(oh + (ev.clientY - sy) / scale));
+            node.style.width = el.w + "px"; node.style.height = el.h + "px";
+          };
+          let up = () => { removeEventListener("mousemove", mv); removeEventListener("mouseup", up); changed(); renderStrip(); };
+          addEventListener("mousemove", mv);
+          addEventListener("mouseup", up);
+        });
+        node.append(handle);
+      }
+      function select(i) {
+        selected = i;
+        markSelected();
+        $("#toolbar").classList.toggle("no-el", i === null);
+        let el = i === null ? null : slide().elements[i];
+        if (el && el.type === "text") { $("#size").value = String(el.size || 24); $("#font").value = el.font || ""; }
+      }
+      function markSelected() {
+        stageSlide.querySelectorAll(".el").forEach(n => n.classList.toggle("selected", +n.dataset.i === selected));
+        stageSlide.querySelectorAll(".handle").forEach(n => (n.style.display = "none"));
+        let sel = stageSlide.querySelector(`.el[data-i="${selected}"] .handle`);
+        if (sel) sel.style.display = "";
+      }
+
+      // ------------------------------------------------ slide strip
+      function renderStrip() {
+        $("#strip").replaceChildren(...deck.slides.map((s, i) => h("div", { class: "item" + (i === current ? " active" : ""), draggable: "true",
+          onclick: () => go(i),
+          ondragstart: e => e.dataTransfer.setData("text/slide", String(i)),
+          ondragover: e => e.preventDefault(),
+          ondrop: e => { e.preventDefault(); let from = +e.dataTransfer.getData("text/slide"); if (isNaN(from) || from === i) return; snapshot(); let [m] = deck.slides.splice(from, 1); deck.slides.splice(i, 0, m); current = i; changed(); renderAll(); },
+          oncontextmenu: e => { e.preventDefault(); go(i); slideMenu(e); } },
+          h("span", { class: "num" }, i + 1), h("div", { class: "mini" }, Slides.scaled(s, deck, 150, { dir })))));
+        $("#strip").append(h("button", { class: "btn", style: { width: "100%" }, onclick: () => addSlide("content") }, "＋ New slide"));
+      }
+      function go(i) { current = Math.max(0, Math.min(deck.slides.length - 1, i)); selected = null; renderAll(); }
+      function renderAll() { renderStrip(); renderStage(); select(selected); }
+      function addSlide(layout) { snapshot(); deck.slides.splice(current + 1, 0, Slides.newSlide(layout)); current++; selected = null; changed(); renderAll(); }
+      function slideMenu(e) {
+        $$(".ctx").forEach(m => m.remove());
+        let m = h("div", { class: "ctx offox-dialog", style: { position: "fixed", left: e.clientX + "px", top: e.clientY + "px", width: "200px", padding: "6px 0", zIndex: 60 } },
+          [["Duplicate slide", () => { snapshot(); deck.slides.splice(current + 1, 0, JSON.parse(JSON.stringify(slide()))); current++; }],
+           ["Delete slide", () => { if (deck.slides.length < 2) return; snapshot(); deck.slides.splice(current, 1); current = Math.min(current, deck.slides.length - 1); }],
+           ["Move up", () => { if (!current) return; snapshot(); [deck.slides[current - 1], deck.slides[current]] = [deck.slides[current], deck.slides[current - 1]]; current--; }],
+           ["Move down", () => { if (current >= deck.slides.length - 1) return; snapshot(); [deck.slides[current + 1], deck.slides[current]] = [deck.slides[current], deck.slides[current + 1]]; current++; }]]
+            .map(([l, fn]) => h("button", { style: { display: "block", width: "100%", textAlign: "left", border: 0, background: "none", padding: "6px 16px", cursor: "pointer" }, onclick: () => { m.remove(); fn(); changed(); renderAll(); } }, l)));
+        document.body.append(m);
+        setTimeout(() => addEventListener("click", () => m.remove(), { once: true }));
+      }
+
+      // ------------------------------------------------ toolbar
+      let el = () => (selected === null ? null : slide().elements[selected]);
+      let update = patch => { let e = el(); if (!e) return; snapshot(); Object.assign(e, patch); changed(); renderStage(); renderStrip(); };
+      let imageInput = h("input", { type: "file", accept: "image/*", hidden: true, onchange: async () => {
+        let f = imageInput.files[0];
+        if (!f) return;
+        let name = Date.now() + "-" + slugify(f.name);
+        await Offox.upload(`${dir}/images/${name}`, f);
+        let img = new Image();
+        img.src = URL.createObjectURL(f);
+        await img.decode().catch(() => {});
+        let w = Math.min(600, img.naturalWidth || 400), hgt = Math.round(w * ((img.naturalHeight || 300) / (img.naturalWidth || 400)));
+        if (hgt > 440) { w = Math.round(w * 440 / hgt); hgt = 440; }
+        snapshot();
+        slide().elements.push({ type: "image", src: name, x: Math.round((960 - w) / 2), y: Math.round((540 - hgt) / 2), w, h: hgt });
+        selected = slide().elements.length - 1;
+        imageInput.value = "";
+        changed(); renderAll();
+      } });
+      let add = elmt => { snapshot(); slide().elements.push(elmt); selected = slide().elements.length - 1; changed(); renderAll(); };
+      let b = (label, title, fn) => h("button", { title, onmousedown: e => e.preventDefault(), onclick: fn }, label);
+      let sep = () => h("span", { class: "sep" });
+      let layoutSelect = h("select", { title: "New slide with layout", onchange: e => { if (e.target.value) addSlide(e.target.value); e.target.value = ""; } },
+        h("option", { value: "" }, "＋ Slide…"), [["title", "Title slide"], ["content", "Title and content"], ["two", "Two columns"], ["section", "Section header"], ["blank", "Blank"]].map(([v, l]) => h("option", { value: v }, l)));
+      let themeSelect = h("select", { title: "Theme", onchange: e => { snapshot(); deck.theme = e.target.value; changed(); renderAll(); } },
+        Object.entries(THEMES).map(([v, l]) => h("option", { value: v, selected: v === deck.theme }, "🎨 " + l)));
+      $("#toolbar").append(
+        b("↶", "Undo", () => { if (!undo.length) return; redo.push(JSON.stringify(deck)); deck = JSON.parse(undo.pop()); current = Math.min(current, deck.slides.length - 1); selected = null; changed(); renderAll(); }),
+        b("↷", "Redo", () => { if (!redo.length) return; undo.push(JSON.stringify(deck)); deck = JSON.parse(redo.pop()); selected = null; changed(); renderAll(); }), sep(),
+        layoutSelect, themeSelect,
+        h("label", { title: "Slide background" }, "🖌", h("input", { type: "color", value: "#ffffff", onchange: e => { snapshot(); slide().bg = e.target.value; changed(); renderAll(); } })),
+        b("⟲ bg", "Reset background", () => { snapshot(); slide().bg = ""; changed(); renderAll(); }), sep(),
+        b("𝐓 Text", "Add text box", () => add({ type: "text", x: 280, y: 220, w: 400, h: 80, html: "Text", size: 28 })),
+        b("🖼 Image", "Add picture", () => imageInput.click()), imageInput,
+        b("▭", "Add rectangle", () => add({ type: "shape", shape: "rect", x: 380, y: 190, w: 200, h: 160, fill: "#4285f4" })),
+        b("◯", "Add ellipse", () => add({ type: "shape", shape: "ellipse", x: 380, y: 190, w: 200, h: 160, fill: "#34a853" })), sep(),
+        h("span", { class: "el-only" },
+          h("select", { id: "font", title: "Font", onchange: e => update({ font: e.target.value }) },
+            [["", "Theme font"], ["Arial, sans-serif", "Arial"], ["Georgia, serif", "Georgia"], ["'Times New Roman', serif", "Times"], ["'Courier New', monospace", "Courier"], ["Verdana, sans-serif", "Verdana"], ["'Comic Sans MS', cursive", "Comic"]].map(([v, l]) => h("option", { value: v }, l))),
+          h("select", { id: "size", title: "Font size", onchange: e => update({ size: +e.target.value }) }, [12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48, 54, 64, 72, 96].map(s => h("option", { value: s }, s))),
+          b(h("b", {}, "B"), "Bold", () => update({ bold: !el()?.bold })), b(h("i", {}, "I"), "Italic", () => update({ italic: !el()?.italic })),
+          h("label", { title: "Text colour" }, "A", h("input", { type: "color", onchange: e => update({ color: e.target.value }) })),
+          h("label", { title: "Shape fill" }, "◼", h("input", { type: "color", value: "#4285f4", onchange: e => update({ fill: e.target.value }) })),
+          b("⯇", "Align left", () => update({ align: "left" })), b("≡", "Center", () => update({ align: "center" })), b("⯈", "Align right", () => update({ align: "right" })), sep(),
+          b("⤒", "Bring to front", () => { let e = el(); if (!e) return; snapshot(); slide().elements.splice(selected, 1); slide().elements.push(e); selected = slide().elements.length - 1; changed(); renderAll(); }),
+          b("⤓", "Send to back", () => { let e = el(); if (!e) return; snapshot(); slide().elements.splice(selected, 1); slide().elements.unshift(e); selected = 0; changed(); renderAll(); }),
+          b("🗑", "Delete element (Del)", () => deleteSelected())));
+      function deleteSelected() {
+        if (selected === null) return;
+        snapshot();
+        slide().elements.splice(selected, 1);
+        selected = null;
+        changed(); renderAll();
+      }
+      document.addEventListener("keydown", e => {
+        if (e.target.closest("input, textarea, select, [contenteditable=true]")) return;
+        if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); deleteSelected(); }
+        if (e.key === "PageDown" || (e.key === "ArrowDown" && selected === null)) { e.preventDefault(); go(current + 1); }
+        if (e.key === "PageUp" || (e.key === "ArrowUp" && selected === null)) { e.preventDefault(); go(current - 1); }
+        if (selected !== null && e.key.startsWith("Arrow")) {
+          e.preventDefault();
+          let d = e.shiftKey ? 10 : 1, x = el();
+          if (e.key === "ArrowLeft") x.x -= d; if (e.key === "ArrowRight") x.x += d; if (e.key === "ArrowUp") x.y -= d; if (e.key === "ArrowDown") x.y += d;
+          changed(); renderStage();
+        }
+        if ((e.ctrlKey || e.metaKey) && e.key === "d" && selected !== null) { e.preventDefault(); let copy = JSON.parse(JSON.stringify(el())); copy.x += 20; copy.y += 20; add(copy); }
+        if (e.key === "F5") { e.preventDefault(); present(0); }
+      });
+      $("#notes").addEventListener("input", () => { slide().notes = $("#notes").value; changed(); });
+
+      // ------------------------------------------------ presenting
+      function present(start) {
+        let i = start;
+        let layer = h("div", { class: "present" });
+        let show = () => {
+          let scale = Math.min(innerWidth / 960, innerHeight / 540);
+          layer.replaceChildren(Slides.scaled(deck.slides[i], deck, 960 * scale, { dir }), h("div", { class: "hint" }, `${i + 1} / ${deck.slides.length} · Esc to exit`));
+        };
+        let close = () => { removeEventListener("keydown", key, true); removeEventListener("resize", show); layer.remove(); if (document.fullscreenElement) document.exitFullscreen(); };
+        let key = e => {
+          e.stopPropagation();
+          if (["ArrowRight", "ArrowDown", "PageDown", " ", "Enter"].includes(e.key)) { e.preventDefault(); if (i < deck.slides.length - 1) { i++; show(); } }
+          else if (["ArrowLeft", "ArrowUp", "PageUp", "Backspace"].includes(e.key)) { e.preventDefault(); if (i > 0) { i--; show(); } }
+          else if (e.key === "Escape") close();
+          else if (e.key === "Home") { i = 0; show(); } else if (e.key === "End") { i = deck.slides.length - 1; show(); }
+        };
+        layer.addEventListener("click", () => { if (i < deck.slides.length - 1) { i++; show(); } else close(); });
+        addEventListener("keydown", key, true);
+        addEventListener("resize", show);
+        document.body.append(layer);
+        layer.requestFullscreen?.().catch(() => {});
+        document.addEventListener("fullscreenchange", () => { if (!document.fullscreenElement && layer.isConnected) close(); }, { once: true });
+        show();
+      }
+      $("#present").onclick = () => present(current);
+      $("#pdf").onclick = () => {
+        let area = $("#print-area");
+        area.replaceChildren(...deck.slides.map(s => Slides.scaled(s, deck, 1056, { dir })));
+        area.hidden = false;
+        $(".main").style.display = "none";
+        setTimeout(() => { print(); area.hidden = true; $(".main").style.display = ""; }, 300);
+      };
+
+      // ------------------------------------------------ saving
+      let timer = null, chain = Promise.resolve();
+      function changed() { $("#status").textContent = "Editing…"; clearTimeout(timer); timer = setTimeout(save, 700); }
+      function save() {
+        clearTimeout(timer); timer = null;
+        chain = chain.then(async () => {
+          $("#status").textContent = "Saving…";
+          await Offox.writeJSON(`${dir}/deck.json`, deck);
+          meta.title = $("#title").value.trim() || "Untitled presentation";
+          meta.updated = new Date().toISOString();
+          meta.text = Slides.text(deck);
+          await Offox.writeJSON(`${dir}/meta.json`, meta);
+          document.title = `${meta.title} – {{SITE_TITLE}}`;
+          $("#status").textContent = "All changes saved to disk";
+        }).catch(e => ($("#status").textContent = "Could not save: " + e.message));
+      }
+      addEventListener("beforeunload", e => { if (timer) { save(); e.preventDefault(); } });
+      $("#title").value = meta.title;
+      document.title = `${meta.title} – {{SITE_TITLE}}`;
+      $("#title").addEventListener("input", changed);
+      addEventListener("resize", () => renderStage());
+      renderAll();
+    })();
+  </script>
+</body>
+</html>

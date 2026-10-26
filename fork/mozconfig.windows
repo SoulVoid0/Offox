@@ -1,0 +1,19 @@
+# Offox build configuration for Windows (MozillaBuild). Copied to the Firefox
+# source folder as "mozconfig" by fork/apply.py.
+ac_add_options --enable-application=browser
+ac_add_options --target=x86_64-pc-windows-msvc
+ac_add_options --enable-release
+ac_add_options --enable-optimize
+ac_add_options --with-branding=browser/branding/offox
+ac_add_options --with-app-name=offox
+ac_add_options --with-app-basename=Offox
+ac_add_options --disable-updater
+ac_add_options --disable-maintenance-service
+ac_add_options --disable-crashreporter
+ac_add_options --disable-default-browser-agent
+ac_add_options --disable-tests
+ac_add_options --disable-debug
+ac_add_options --enable-bootstrap
+mk_add_options MOZ_OBJDIR=@TOPSRCDIR@/obj-offox
+export MOZ_REQUIRE_SIGNING=
+export MOZ_TELEMETRY_REPORTING=

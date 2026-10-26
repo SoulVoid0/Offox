@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Playlists – {{SITE_TITLE}}</title>
+  <link rel="icon" href="assets/logo.svg">
+  <link rel="stylesheet" href="assets/ui.css">
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <main id="main">
+    <h1>Playlists</h1>
+    <div class="toolbar"><button class="btn primary" id="new">＋ New playlist</button></div>
+    <div class="grid" id="grid"></div>
+  </main>
+  <script src="/__offox/offox.js"></script>
+  <script src="assets/util.js"></script>
+  <script src="assets/app.js"></script>
+  <script>
+    (async () => {
+      await OffTube.layout("playlists");
+      let [lists, videos] = await Promise.all([OffTube.playlists(), OffTube.videos()]);
+      let grid = $("#grid");
+      for (let pl of lists) {
+        let first = videos.find(v => v.id === pl.videos[0]);
+        let count = pl.videos.filter(id => videos.some(v => v.id === id)).length;
+        let thumb = first ? OffTube.thumbNode(first) : h("div", { class: "thumb" }, h("span", { class: "placeholder" }, "≡"));
+        thumb.append(h("span", { class: "duration" }, `≡ ${count} video${count === 1 ? "" : "s"}`));
+        grid.append(h("a", { class: "card", href: `playlist.html?id=${encodeURIComponent(pl.id)}` },
+          thumb, h("div", {}, h("h3", {}, pl.name), h("div", { class: "meta" }, `Updated ${timeAgo(pl.updated || pl.created)}`))));
+      }
+      if (!lists.length) grid.append(h("div", { class: "empty", style: { gridColumn: "1/-1" } }, h("h2", {}, "No playlists yet"), h("p", {}, "Create one here, or use “Save” under any video.")));
+      $("#new").addEventListener("click", async () => {
+        let data = await dialogForm("New playlist", [
+          { name: "name", label: "Name", required: true },
+          { name: "description", label: "Description", type: "textarea", rows: 3 },
+        ], { submit: "Create" });
+        if (!data || !data.name.trim()) return;
+        let pl = { id: Offox.id(8), name: data.name.trim(), description: data.description, created: new Date().toISOString(), videos: [] };
+        await OffTube.savePlaylist(pl);
+        location.href = `playlist.html?id=${pl.id}`;
+      });
+    })();
+  </script>
+</body>
+</html>

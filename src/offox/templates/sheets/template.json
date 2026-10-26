@@ -1,0 +1,13 @@
+{
+  "id": "sheets",
+  "name": "Spreadsheets",
+  "icon": "📊",
+  "description": "Spreadsheets like Google Sheets or Excel: formulas (SUM, AVERAGE, IF, VLOOKUP and more), formatting, several sheets per file, charts, CSV import and export.",
+  "defaultTitle": "Sheets",
+  "defaultDomain": "sheets.offox",
+  "shared": ["util.js", "ui.css"],
+  "directories": ["spreadsheets"],
+  "searchRules": [
+    { "type": "folders", "dir": "spreadsheets", "json": "meta.json", "titleKey": "title", "textKeys": ["text"], "url": "/sheet.html?id={name}", "kind": "spreadsheet" }
+  ]
+}

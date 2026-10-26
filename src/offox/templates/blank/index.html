@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{SITE_TITLE}}</title>
+  <meta name="description" content="{{SITE_DESCRIPTION}}">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <h1>{{SITE_TITLE}}</h1>
+    <p>{{SITE_DESCRIPTION}}</p>
+    <p>This website lives in a folder on your disk. Open that folder (Offox settings → your site → <b>Show folder</b>) and edit
+      <code>index.html</code>, <code>style.css</code> and <code>script.js</code> with any text editor, then reload this page.</p>
+    <h2>Offox site API</h2>
+    <p>Pages of this site can read and write files in its folder with <code>/__offox/offox.js</code>:</p>
+    <pre>await Offox.writeText("notes/hello.txt", "Hi!");
+let text = await Offox.readText("notes/hello.txt");
+let files = await Offox.list("notes");</pre>
+    <p>Try it: <button id="count">You have visited 0 times</button></p>
+  </main>
+  <script src="/__offox/offox.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>

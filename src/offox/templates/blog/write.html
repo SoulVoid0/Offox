@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Write – {{SITE_TITLE}}</title>
+  <meta name="fireline" content="noindex">
+  <link rel="stylesheet" href="assets/ui.css">
+  <link rel="stylesheet" href="assets/blog.css">
+</head>
+<body class="wide">
+  <main id="main">
+    <div class="editor">
+      <input id="title" placeholder="Title" class="full" style="font-size:22px;font-weight:700">
+      <div class="full">
+        <input id="tags" placeholder="Tags, separated by commas" style="flex:1">
+        <label><input type="checkbox" id="draft"> Draft</label>
+        <label class="btn">🖼 Insert picture<input type="file" id="image" accept="image/*" hidden></label>
+      </div>
+      <textarea id="body" placeholder="Write in Markdown…"></textarea>
+      <div class="preview" id="preview"></div>
+      <div class="full"><button class="btn primary" id="save">Publish</button><a href="./">Cancel</a><span class="meta" id="status"></span></div>
+    </div>
+  </main>
+  <script src="/__offox/offox.js"></script>
+  <script src="assets/util.js"></script>
+  <script src="assets/md.js"></script>
+  <script src="assets/blog.js"></script>
+  <script>
+    (async () => {
+      Blog.header();
+      let slug = param("slug");
+      let created = new Date().toISOString();
+      if (slug) {
+        let { data, body } = Markdown.frontMatter(await Offox.readText(`posts/${slug}.md`, ""));
+        $("#title").value = data.title || "";
+        $("#tags").value = data.tags || "";
+        $("#draft").checked = data.draft === "true";
+        $("#body").value = body;
+        created = data.date || created;
+      }
+      let preview = () => { $("#preview").innerHTML = `<h1>${Markdown.esc($("#title").value)}</h1>` + Markdown.render($("#body").value).html; };
+      $("#body").addEventListener("input", preview);
+      $("#title").addEventListener("input", preview);
+      preview();
+      $("#image").addEventListener("change", async e => {
+        let file = e.target.files[0];
+        if (!file) return;
+        let name = Date.now() + "-" + slugify(file.name);
+        $("#status").textContent = "Copying picture…";
+        await Offox.upload(`media/${name}`, file);
+        $("#body").setRangeText(`\n![${file.name}](/media/${encodeURIComponent(name)})\n`, $("#body").selectionStart, $("#body").selectionEnd, "end");
+        $("#status").textContent = "";
+        preview();
+      });
+      $("#save").addEventListener("click", async () => {
+        let title = $("#title").value.trim() || "Untitled";
+        let target = slug || `${created.slice(0, 10)}-${slugify(title).toLowerCase()}`;
+        let text = Markdown.stringifyFrontMatter({ title, date: created, tags: $("#tags").value, draft: $("#draft").checked ? "true" : "" }, $("#body").value);
+        await Offox.writeText(`posts/${target}.md`, text);
+        location.href = `post.html?slug=${encodeURIComponent(target)}`;
+      });
+    })();
+  </script>
+</body>
+</html>

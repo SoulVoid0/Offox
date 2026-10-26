@@ -1,0 +1,37 @@
+:root { --bg: #f4efe6; --surface: #fffaf2; --text: #2b2118; --muted: #7b6a58; --line: #e2d6c3; --accent: #8a4b16; color-scheme: light dark; }
+@media (prefers-color-scheme: dark) { :root { --bg: #17130f; --surface: #221c16; --text: #efe5d6; --muted: #b29e86; --line: #3a3027; --accent: #e3a35f; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.55 Georgia, "Times New Roman", serif; }
+a { color: var(--accent); text-decoration: none; }
+button, input, select, textarea { font: 15px system-ui, sans-serif; color: inherit; }
+header { display: flex; align-items: center; gap: 16px; padding: 14px 28px; border-bottom: 1px solid var(--line); background: var(--surface); flex-wrap: wrap; }
+header .brand { font-size: 24px; font-weight: 700; color: var(--text); }
+header input { flex: 1; max-width: 420px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+.btn { padding: 8px 16px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; display: inline-block; color: var(--text); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+main { max-width: 1200px; margin: 0 auto; padding: 24px 28px 60px; }
+.tags { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; font-family: system-ui, sans-serif; }
+.tags button { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 4px 12px; cursor: pointer; }
+.tags button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.shelf { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 28px 20px; }
+.book { color: var(--text); }
+.cover { aspect-ratio: 2/3; border-radius: 3px 8px 8px 3px; box-shadow: 4px 6px 14px #0003, inset 6px 0 0 #0002; display: flex; flex-direction: column; justify-content: space-between; padding: 14px 12px; color: #fff; overflow: hidden; position: relative; }
+.cover img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.cover b { font-size: 16px; line-height: 1.2; } .cover small { opacity: .85; font-family: system-ui, sans-serif; font-size: 12px; }
+.cover .kind { position: absolute; right: 8px; bottom: 8px; font: 11px system-ui; background: #0006; padding: 1px 6px; border-radius: 4px; }
+.book .title { margin-top: 8px; font-weight: 700; line-height: 1.25; }
+.book .author { color: var(--muted); font-size: 14px; }
+.progress { height: 4px; background: var(--line); border-radius: 2px; margin-top: 6px; } .progress div { height: 100%; background: var(--accent); border-radius: 2px; }
+.detail { display: flex; gap: 32px; flex-wrap: wrap; }
+.detail .cover { width: 220px; flex: none; }
+.detail .info { flex: 1; min-width: 260px; }
+.detail h1 { margin: 0; font-size: 34px; }
+.reader { max-width: 760px; margin: 0 auto; font-size: var(--size, 19px); line-height: 1.75; }
+.reader pre { white-space: pre-wrap; font: inherit; }
+.reader-bar { position: sticky; top: 0; display: flex; gap: 10px; align-items: center; padding: 8px 20px; background: var(--surface); border-bottom: 1px solid var(--line); font-family: system-ui; z-index: 3; }
+.reader-bar .spacer { flex: 1; }
+form.edit { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; font-family: system-ui; }
+form.edit label { display: flex; flex-direction: column; gap: 5px; font-weight: 600; font-size: 14px; }
+form.edit .full { grid-column: 1 / -1; }
+form.edit input, form.edit textarea { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font-weight: 400; }
+.empty { text-align: center; color: var(--muted); padding: 60px 0; }
