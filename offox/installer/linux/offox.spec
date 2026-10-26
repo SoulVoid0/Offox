@@ -18,6 +18,9 @@ ExclusiveArch:  x86_64
 # Offox bundles its own libraries (like the Mozilla Firefox tarball).
 AutoReqProv:    no
 
+BuildRequires:  patchelf
+BuildRequires:  binutils
+
 Requires:       gtk3
 Requires:       dbus-glib
 Requires:       libXt
@@ -41,6 +44,28 @@ own websites. FFmpeg (ffmpeg-free) is used to convert old video formats.
 mkdir -p %{buildroot}%{_libdir}/offox %{buildroot}%{_bindir}
 cp -a . %{buildroot}%{_libdir}/offox/
 rm -f %{buildroot}%{_libdir}/offox/offox-portable
+# Some bundled libraries (e.g. libonnxruntime.so) carry a broken RUNPATH such
+# as "$", which rpmbuild's check-rpaths rejects. Keep only absolute,
+# non-system entries and $ORIGIN ones; drop the RUNPATH if nothing is left.
+find %{buildroot}%{_libdir}/offox -type f | while read -r f; do
+  head -c4 "$f" 2>/dev/null | grep -q 'ELF' || continue
+  readelf -d "$f" 2>/dev/null | grep -qE '\((RPATH|RUNPATH)\)' || continue
+  old="$(patchelf --print-rpath "$f")"
+  new=""
+  for e in $(printf '%s' "$old" | tr ':' ' '); do
+    case "$e" in
+      /lib|/lib64|/usr/lib|/usr/lib64|/lib/|/lib64/|/usr/lib/|/usr/lib64/) ;;
+      '$ORIGIN'|'$ORIGIN'/*|'${ORIGIN}'|'${ORIGIN}'/*|/*) new="${new:+$new:}$e" ;;
+    esac
+  done
+  if [ "$new" != "$old" ]; then
+    if [ -n "$new" ]; then
+      patchelf --set-rpath "$new" "$f"
+    else
+      patchelf --remove-rpath "$f"
+    fi
+  fi
+done
 ln -s %{_libdir}/offox/offox %{buildroot}%{_bindir}/offox
 for size in 16 32 48 64 128; do
   install -Dm644 browser/chrome/icons/default/default$size.png \

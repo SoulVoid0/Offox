@@ -15,7 +15,7 @@ OUT="$REPO/dist"
 export MOZCONFIG="$OFFOX/fork/mozconfig.linux"
 
 echo "== Installing build tools"
-sudo dnf install -y git python3 python3-pip rpm-build xz curl
+sudo dnf install -y git python3 python3-pip rpm-build xz curl patchelf binutils
 
 cd "$REPO"
 echo "== Bootstrapping (compilers, Rust, Node...)"
