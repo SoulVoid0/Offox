@@ -1,7 +1,7 @@
 ; Offox installer for Windows. Lets you choose:
 ;   Normal install   - Offox for your user account (no administrator rights
 ;                      needed), Start menu and desktop shortcuts, uninstaller,
-;                      settings kept in your user profile (%APPDATA%\Offox).
+;                      settings kept in your user profile (%APPDATA%\Mozilla\Offox).
 ;   Portable install - Offox and all of its settings in one folder you choose
 ;                      (for example on a USB drive). Nothing is written to the
 ;                      registry or anywhere else.
@@ -240,7 +240,7 @@ Section "Uninstall"
   Delete "$SMPROGRAMS\Offox.lnk"
   Delete "$DESKTOP\Offox.lnk"
   DeleteRegKey HKCU "${UNINSTKEY}"
-  ; Only the program is removed: settings (%APPDATA%\Offox) and your
+  ; Only the program is removed: settings (%APPDATA%\Mozilla\Offox) and your
   ; websites (storage folders) are kept.
   RMDir /r "$INSTDIR"
 SectionEnd

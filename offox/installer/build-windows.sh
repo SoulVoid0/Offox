@@ -8,7 +8,7 @@
 # This repository is the Firefox ESR source with Offox already applied, so it
 # builds in place.
 #
-# Needs Visual Studio 2022 Build Tools (mach bootstrap explains), ~40 GB of
+# mach bootstrap downloads the compilers and Windows SDK. Needs ~40 GB of
 # disk and a few hours the first time.
 set -euo pipefail
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"

@@ -6,8 +6,10 @@ or on an external drive, and each one opens at an address you choose, for exampl
 `https://youtube.com`. Every request the browser makes is answered from those
 folders, and nothing is ever sent to the network.
 
-Offox runs on **Fedora Linux** and **Windows**. Both have installers that ask
-whether you want a **normal** or a **portable** install.
+Offox runs on **Fedora Linux** and **Windows**. You build it yourself with one
+script per system (see [Build Offox and the installers](#build-offox-and-the-installers)).
+The scripts also make installers that ask whether you want a **normal** or a
+**portable** install.
 
 ## What you get
 
@@ -47,104 +49,172 @@ whether you want a **normal** or a **portable** install.
   Anything that is not an http(s) request goes to a SOCKS proxy that never
   answers.
 
-## Try it now without compiling (developer mode)
+## Scripts at a glance
 
-Developer mode runs Offox inside a stock Firefox ESR (140 or newer). The first
-run downloads Firefox ESR; after that, everything works offline.
+All commands are run from the repository folder.
 
-```sh
-# Fedora
-offox/dev/run-dev.sh
-```
-```powershell
-# Windows
-powershell -ExecutionPolicy Bypass -File offox\dev\run-dev.ps1
-```
-
-On the first start, the settings page opens and asks for a storage folder.
-
-You can also work on websites and templates in any browser with the preview
-server. It runs the same request router as the browser:
-
-```sh
-node offox/dev/preview-server.mjs --root ~/OffoxSites
-chromium --proxy-server=http://127.0.0.1:8444 --ignore-certificate-errors https://fireline.offox/
-# settings page: https://settings.offox/
-```
+| Script | System | What it does |
+|---|---|---|
+| `offox/installer/build-fedora.sh` | Fedora | Builds Offox and writes the RPM and the `.run` installer to `dist/` |
+| `offox\installer\build-windows.ps1` | Windows (PowerShell) | Builds Offox and writes `dist\Offox-<version>-Setup.exe` |
+| `offox/installer/build-windows.sh` | Windows (MozillaBuild shell) | Same as `build-windows.ps1` |
+| `offox/dev/run-dev.sh` | Fedora | Developer mode: runs Offox inside a stock Firefox ESR, without compiling |
+| `offox\dev\run-dev.ps1` | Windows (PowerShell) | Developer mode, as above |
+| `offox/dev/preview-server.mjs` | Any (Node.js) | Serves your storage folders to any browser, for working on websites and templates |
+| `offox/fork/apply.py` | Any (Python 3) | Moves Offox to a newer Firefox ESR source tree |
+| `offox/tools/make-branding.py` | Any (Python 3 + Pillow) | Redraws the Offox logo and icons |
 
 ## Build Offox and the installers
 
 This repository is the complete Firefox 153.5.1 ESR source with the Offox
 changes applied (see [Project layout](#project-layout)), so it builds in place.
-The first build needs about 40 GB of disk space and takes a few hours.
+The first build needs about 40 GB of free disk space and takes a few hours.
+Later builds are much faster.
 
 ### Fedora
 
 ```sh
-git clone https://github.com/SoulVoid0/Offox && cd Offox
-offox/installer/build-fedora.sh      # installs build tools, builds Offox and both installers
+git clone https://github.com/SoulVoid0/Offox
+cd Offox
+offox/installer/build-fedora.sh
 ```
 
-The installers are written to `dist/`:
+The script installs the build tools with `dnf` (it asks for your password). It
+then runs `./mach bootstrap`, `./mach build` and `./mach package`, and writes
+the installers to `dist/`:
 
-- `offox-<version>-1.fc*.x86_64.rpm` is the normal install, for all users:
-  `sudo dnf install ./dist/offox-*.rpm`
-- `Offox-<version>-linux-x86_64.run` asks which install you want:
-  ```sh
-  sh Offox-*.run                         # menu: 1) normal  2) portable
-  sh Offox-*.run --normal                # for your user, no sudo (~/.local)
-  sudo sh Offox-*.run --normal --system  # for all users (/opt/offox)
-  sh Offox-*.run --portable /run/media/$USER/USB
-  sh Offox-*.run --uninstall
-  ```
+| File | Install |
+|---|---|
+| `dist/offox-<version>-1.fc*.x86_64.rpm` | **Normal**, for all users: `sudo dnf install ./dist/offox-*.rpm`. Remove it with `sudo dnf remove offox`. |
+| `dist/Offox-<version>-linux-x86_64.run` | Asks whether you want a **normal** or a **portable** install (see below). |
+| `dist/offox-<version>esr.en-US.linux-x86_64.tar.xz` | The plain build, unpacked anywhere. Run `offox/offox` inside it. |
 
-For video conversion, install FFmpeg: `sudo dnf install ffmpeg-free`, or
-`ffmpeg` from RPM Fusion for more codecs.
+Using the `.run` installer:
+
+```sh
+sh dist/Offox-*.run                              # menu: 1) normal  2) portable
+sh dist/Offox-*.run --normal                     # normal, for your user only (no sudo)
+sudo sh dist/Offox-*.run --normal --system       # normal, for all users
+sh dist/Offox-*.run --portable /run/media/$USER/USB
+sh dist/Offox-*.run --uninstall                  # add --system for the all-users install
+```
+
+- **Normal, your user only** puts the program in `~/.local/share/offox-browser`,
+  the `offox` command in `~/.local/bin`, and a menu entry with icons in
+  `~/.local/share`.
+- **Normal, all users** puts the program in `/opt/offox`, the command in
+  `/usr/local/bin` and the menu entry in `/usr/share`.
+- **Portable** creates an `Offox` folder in the place you give, with the program,
+  an `offox-portable` marker file, a `Data` folder for settings and a `Sites`
+  folder for websites. Start it with `Offox/Start Offox.sh`.
+
+For video conversion, install FFmpeg with `sudo dnf install ffmpeg-free`, or
+install `ffmpeg` from RPM Fusion for more codecs.
 
 ### Windows
 
-1. Clone the repository with Unix line endings and long paths turned on (the
-   build breaks with Git's default CRLF conversion):
+1. Install [Git for Windows](https://git-scm.com/download/win). Then clone the
+   repository with Unix line endings and long paths turned on. Git's default
+   CRLF conversion breaks the build, and the script stops if it finds CRLF.
    ```powershell
    git clone -c core.autocrlf=false -c core.longpaths=true https://github.com/SoulVoid0/Offox
    cd Offox
    ```
-2. Optional: put an LGPL FFmpeg build in `offox\installer\windows\ffmpeg\` (see the
-   README there) so video conversion works out of the box.
+2. Optional: put an LGPL build of FFmpeg (`ffmpeg.exe` and its DLLs) in
+   `offox\installer\windows\ffmpeg\`, so that video conversion works out of
+   the box. See `offox\installer\windows\ffmpeg\README.txt`.
 3. In PowerShell, run:
    ```powershell
    powershell -ExecutionPolicy Bypass -File offox\installer\build-windows.ps1
    ```
-   It installs [MozillaBuild](https://wiki.mozilla.org/MozillaBuild) if needed
-   (this asks for administrator rights once). Then `mach bootstrap` downloads
-   the compilers and SDKs, and the script builds Offox and makes the installer.
-   Later builds can skip the bootstrap: add `-SkipBootstrap`. Use
-   `-NoInstaller` to build only the browser, or `-ObjDir D:\offox-obj` to put
-   the build output on another disk.
-   If you prefer the MozillaBuild shell, `offox/installer/build-windows.sh`
-   does the same.
+   The script:
+   - installs [MozillaBuild](https://wiki.mozilla.org/MozillaBuild) to
+     `C:\mozilla-build` if it is missing (it asks for administrator rights once);
+   - runs `./mach bootstrap`, which downloads the compilers and the Windows SDK;
+   - runs `./mach build` and `./mach package`;
+   - makes the installer with NSIS, installing NSIS with `winget` if needed.
+
+   Options:
+
+   | Option | Effect |
+   |---|---|
+   | `-SkipBootstrap` | Skip `mach bootstrap` (for builds after the first) |
+   | `-NoInstaller` | Only build Offox and copy `offox-<version>.en-US.win64.zip` to `dist\` |
+   | `-ObjDir D:\offox-obj` | Put the build output on another disk (default: `obj-offox` in the repository) |
+
+   If you prefer the MozillaBuild shell (`C:\mozilla-build\start-shell.bat`), run
+   `offox/installer/build-windows.sh` there instead.
 
 The result is `dist\Offox-<version>-Setup.exe`. Its second page asks for the
 installation type:
 
-- **Normal install** goes to `%LOCALAPPDATA%\Programs\Offox` (no administrator
-  rights needed). It adds Start menu and desktop shortcuts, an entry in "Apps &
-  features" and keeps settings in `%APPDATA%\Offox`.
-- **Portable install** puts everything in one folder you pick, for example
-  `E:\Offox`. Nothing is written to the registry.
+- **Normal install** goes to `%LOCALAPPDATA%\Programs\Offox` and needs no
+  administrator rights. It adds a Start menu shortcut, an optional desktop
+  shortcut and an entry in "Installed apps". Settings are kept in
+  `%APPDATA%\Mozilla\Offox`. Uninstall it from "Installed apps"; your settings
+  and websites are kept.
+- **Portable install** puts everything in one folder you pick (for example
+  `E:\Offox`). This includes the `offox-portable` marker, a `Data` folder for
+  settings and a `Sites` folder for websites. Nothing is written to the
+  registry. To remove it, delete the folder.
 
-Silent installs: `Offox-Setup.exe /S`, or `Offox-Setup.exe /S /PORTABLE /D=E:\Offox`.
+Silent installs: `Offox-<version>-Setup.exe /S` (normal), or
+`Offox-<version>-Setup.exe /S /PORTABLE /D=E:\Offox` (portable; `/D=` must come last).
 
-### Manual build (either system)
+### Building by hand
+
+On Fedora, in a terminal:
 
 ```sh
-export MOZCONFIG=$PWD/offox/fork/mozconfig.linux   # or mozconfig.windows
-./mach bootstrap && ./mach build && ./mach run
+export MOZCONFIG=$PWD/offox/fork/mozconfig.linux
+./mach bootstrap
+./mach build
+./mach run          # start the Offox you just built
+./mach package      # obj-offox/dist/offox-<version>esr.en-US.linux-x86_64.tar.xz
 ```
 
-To move Offox to a newer Firefox ESR later, run
-`python3 offox/fork/apply.py <new firefox source>`. It applies the patches in
-`offox/fork/patches/` and copies the Offox files into that tree.
+On Windows, run the same commands in the MozillaBuild shell with
+`export MOZCONFIG=$PWD/offox/fork/mozconfig.windows`. The package is then
+`obj-offox/dist/offox-<version>esr.en-US.win64.zip`.
+
+After you change files in `browser/components/offox/`, `./mach build faster`
+is enough to rebuild. If you added or removed files there, run
+`python3 offox/fork/apply.py .` first. It regenerates `jar.mn`, the list of
+files packaged into the browser.
+
+To move Offox to a newer Firefox ESR, run
+`python3 offox/fork/apply.py <new firefox source folder> --mozconfig linux`.
+It applies the patches in `offox/fork/patches/`, then copies in the Offox
+component, the prefs, the branding and the FireLine search config.
+
+## Try Offox without compiling (developer mode)
+
+Developer mode runs Offox inside a stock Firefox ESR (version 140 or newer).
+The first run downloads Firefox ESR into `offox/dev/.firefox`; after that,
+everything works offline. The profile is kept in `offox/dev/.profile`.
+
+```sh
+offox/dev/run-dev.sh            # Fedora; add --fresh to start with a new profile
+```
+```powershell
+powershell -ExecutionPolicy Bypass -File offox\dev\run-dev.ps1     # Windows; add -Fresh for a new profile
+```
+
+On the first start, the settings page opens and asks for a storage folder. The
+settings page is at `chrome://offox/content/settings.html` in developer mode,
+and at `about:offox` in a real Offox build. Developer mode cannot include the
+portable-mode patch, and Firefox's own branding stays.
+
+To work on websites and templates in any browser, use the preview server. It
+runs the same request handling as Offox (Node.js 20 or newer):
+
+```sh
+node offox/dev/preview-server.mjs --root ~/OffoxSites      # add more --root folders if you like
+chromium-browser --proxy-server=http://127.0.0.1:8444 --ignore-certificate-errors https://fireline.offox/
+```
+
+The settings page is then at `https://settings.offox/`. The server listens on
+port 8443 and its proxy on 8444; use `--port` to change them.
 
 ## How portable mode works
 
@@ -184,26 +254,35 @@ reach other sites' folders, and cross-site writes are refused.
 | `browser/components/offox/content/` | The `about:offox` settings page. |
 | `browser/components/offox/assets/` | FireLine, the offline and error pages, and the site API script. |
 | `browser/components/offox/templates/` | Website templates (`template.json` plus the site's files). |
-| `offox/fork/` | The mozconfigs, the patches as separate files, the branding images and `apply.py` (moves Offox to a newer Firefox). |
-| `offox/installer/` | The NSIS script (Windows), the `.run` installer and RPM spec (Linux), and the build scripts. |
-| `offox/dev/` | The preview server and the developer-mode runners. |
-| `offox/tests/` | End-to-end tests in Chromium through the preview server. |
+| `browser/components/offox/jar.mn`, `moz.build` | Package the component into the browser (`jar.mn` is generated by `offox/fork/apply.py`). |
+| `browser/branding/offox/` | Offox name, logo and icons. |
+| `offox/fork/` | `mozconfig.linux` and `mozconfig.windows` (build settings), `patches/` (the Firefox changes as separate files), `branding-images/` (icons drawn by `offox/tools/make-branding.py`), `apply.py`, and `FIREFOX_VERSION` (the Firefox release tag this is based on). |
+| `offox/installer/` | `build-fedora.sh`, `build-windows.ps1` and `build-windows.sh`. `linux/` has the `.run` installer (`installer-header.sh`, `make-run.sh`) and the RPM spec (`offox.spec`). `windows/` has the NSIS installer script (`offox.nsi`) and the optional `ffmpeg/` folder. |
+| `offox/dev/` | `run-dev.sh` and `run-dev.ps1` (developer mode, with its files in `devmode/`), and `preview-server.mjs` with `node-adapters.mjs`. |
+| `offox/tests/` | Tests: end-to-end in Chromium through the preview server, plus a test of the browser glue with simulated Gecko APIs. |
+| `offox/tools/` | `check-syntax.mjs`, `build-template-index.mjs` (regenerates `templates/index.json`) and `make-branding.py`. |
+| `offox/docs/` | `ARCHITECTURE.md`, `SITE-API.md` and `VIDEO-FORMATS.md`. |
 
 More detail: [offox/docs/ARCHITECTURE.md](offox/docs/ARCHITECTURE.md).
 
 ## Tests
 
+The tests need Node.js 20 or newer. The end-to-end tests also need Playwright
+with Chromium.
+
 ```sh
 cd offox
-npm install playwright      # once, if not installed
-node --experimental-vm-modules tools/check-syntax.mjs
-node tools/build-template-index.mjs --check
-node tests/formula.test.cjs
-node tests/gecko-shim.test.mjs
-node tests/e2e-video.mjs <media folder>
-node tests/e2e-sites.mjs <media folder>
-node tests/e2e-settings.mjs
+npm install playwright && npx playwright install chromium   # once
+node --experimental-vm-modules tools/check-syntax.mjs     # every script parses
+node tools/build-template-index.mjs --check               # templates/index.json is up to date
+node tests/formula.test.cjs                                # spreadsheet formulas
+node tests/gecko-shim.test.mjs                             # browser glue with simulated Gecko APIs
+node tests/e2e-settings.mjs                                # settings page
+node tests/e2e-video.mjs <media folder>                    # needs clip.webm and old.avi
+node tests/e2e-sites.mjs <media folder>                    # needs "Test Artist - Test Song.mp3", photo.png, story.txt, setup.exe
 ```
+
+`e2e-video.mjs` also needs `ffmpeg` on the PATH, for the AVI conversion.
 
 ## Licences
 

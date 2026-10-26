@@ -7,7 +7,7 @@
 // browser uses, so templates can be worked on in any browser without
 // building Offox.
 //
-//   node dev/preview-server.mjs [--root ~/OffoxSites] [--root /mnt/usb/Sites] [--port 8443]
+//   node offox/dev/preview-server.mjs [--root ~/OffoxSites] [--root /mnt/usb/Sites] [--port 8443]
 //
 // It speaks HTTPS with a throw-away self-signed certificate and answers for
 // every host name. Point a browser at its built-in proxy (port + 1), e.g.
