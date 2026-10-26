@@ -97,9 +97,11 @@ export class OffoxRouter {
     if (!site) {
       return this._unknownSite(req, url);
     }
-    if (url.protocol === "http:") {
-      // One origin per site, so storage (localStorage, IndexedDB) is shared.
-      return redirect(`https://${host}${url.pathname}${url.search}`);
+    let known = host === site.domain || site.aliases.includes(host);
+    if (url.protocol === "http:" || !known) {
+      // One origin per site, so storage (localStorage, IndexedDB) is shared;
+      // www.<site> goes to <site> and the other way round.
+      return redirect(`https://${known ? host : site.domain}${url.pathname}${url.search}`);
     }
     if (url.pathname === "/__offox/offox.js") {
       return this._asset("assets/client/offox.js");

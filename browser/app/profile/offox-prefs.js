@@ -26,7 +26,27 @@ pref("browser.newtabpage.activity-stream.showSponsored", false, locked);
 pref("browser.newtabpage.activity-stream.showSponsoredTopSites", false, locked);
 pref("browser.newtabpage.activity-stream.feeds.telemetry", false, locked);
 pref("browser.newtabpage.activity-stream.telemetry", false, locked);
+// FireLine suggestions come from your own websites (https://fireline.offox/api/suggest).
 pref("browser.search.suggest.enabled", true);
+// Address bar: only your websites, history, bookmarks, tabs and FireLine.
+// Top sites are your own websites (OffoxService sets
+// browser.newtabpage.activity-stream.default.sites) plus the ones you visit.
+pref("browser.topsites.useRemoteSetting", false, locked);
+pref("browser.newtabpage.activity-stream.improvesearch.topSiteSearchShortcuts", false, locked);
+pref("browser.newtabpage.activity-stream.improvesearch.noDefaultSearchTile", true, locked);
+pref("browser.urlbar.suggest.engines", false, locked);
+pref("browser.urlbar.suggest.quickactions", false);
+pref("browser.urlbar.suggest.recentsearches", false);
+pref("browser.urlbar.suggest.addons", false, locked);
+pref("browser.urlbar.suggest.mdn", false, locked);
+pref("browser.urlbar.suggest.weather", false, locked);
+pref("browser.urlbar.suggest.yelp", false, locked);
+pref("browser.urlbar.suggest.amp", false, locked);
+pref("browser.urlbar.suggest.wikipedia", false, locked);
+pref("browser.urlbar.suggest.importantDates", false, locked);
+pref("browser.urlbar.groupLabels.enabled", false);
+pref("browser.urlbar.showSearchTerms.enabled", false);
+pref("browser.urlbar.shortcuts.actions", false);
 pref("browser.search.update", false, locked);
 pref("browser.urlbar.suggest.quicksuggest.sponsored", false, locked);
 pref("browser.urlbar.suggest.quicksuggest.nonsponsored", false, locked);
@@ -127,6 +147,18 @@ pref("browser.preferences.moreFromMozilla", false, locked);
 pref("browser.translations.enable", false, locked);
 pref("browser.ml.enable", false, locked);
 pref("browser.ml.chat.enabled", false, locked);
+pref("browser.ml.chat.sidebar", false, locked);
+pref("browser.ml.chat.menu", false, locked);
+pref("browser.ml.chat.shortcuts", false, locked);
+pref("browser.ml.linkPreview.enabled", false, locked);
+pref("browser.smartwindow.enabled", false, locked);
+pref("browser.preferences.aiControls", false, locked);
+pref("browser.tabs.groups.smart.enabled", false, locked);
+// Settings: the redesigned page, without the online-only sections
+// (see OFFOX_HIDDEN_PANES in browser/components/preferences/preferences.js).
+pref("browser.settings-redesign.enabled", true, locked);
+pref("browser.shell.checkDefaultBrowser", false);
+pref("browser.profiles.enabled", true);
 pref("browser.region.network.url", "", locked);
 pref("browser.region.update.enabled", false, locked);
 pref("geo.enabled", false, locked);

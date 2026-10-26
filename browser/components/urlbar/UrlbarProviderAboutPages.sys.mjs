@@ -49,13 +49,18 @@ export class UrlbarProviderAboutPages extends UrlbarProvider {
    */
   startQuery(queryContext, addCallback) {
     let searchString = queryContext.trimmedLowerCaseSearchString;
-    for (const aboutUrl of lazy.AboutPagesUtils.visibleAboutUrls) {
+    // Offox: list the Offox settings page first, so it is not cut off by the
+    // result limit.
+    let aboutUrls = [...lazy.AboutPagesUtils.visibleAboutUrls].sort(
+      (a, b) => (b == "about:offox") - (a == "about:offox")
+    );
+    for (const aboutUrl of aboutUrls) {
       if (aboutUrl.startsWith(searchString)) {
         let result = new lazy.UrlbarResult({
           type: UrlbarUtils.RESULT_TYPE.URL,
           source: UrlbarUtils.RESULT_SOURCE.OTHER_LOCAL,
           payload: {
-            title: aboutUrl,
+            title: aboutUrl == "about:offox" ? "Offox Sites" : aboutUrl,
             url: aboutUrl,
             icon: UrlbarUtils.getIconForUrl(aboutUrl),
           },

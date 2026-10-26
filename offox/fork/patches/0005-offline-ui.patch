@@ -1,0 +1,209 @@
+diff --git a/browser/base/content/appmenu-viewcache.inc.xhtml b/browser/base/content/appmenu-viewcache.inc.xhtml
+index 4f1a7223d2..870695877b 100644
+--- a/browser/base/content/appmenu-viewcache.inc.xhtml
++++ b/browser/base/content/appmenu-viewcache.inc.xhtml
+@@ -155,6 +155,10 @@
+         </toolbarbutton>
+       </toolbaritem>
+       <toolbarseparator/>
++      <toolbarbutton id="appMenu-offox-sites-button"
++                     class="subviewbutton"
++                     label="Offox Sites"
++                     command="Tools:OffoxSites"/>
+       <toolbarbutton id="appMenu-settings-button"
+                      class="subviewbutton"
+                      data-l10n-id="appmenuitem-settings"
+diff --git a/browser/base/content/browser-menubar.inc.xhtml b/browser/base/content/browser-menubar.inc.xhtml
+index d6df5932dc..d453ccfd16 100644
+--- a/browser/base/content/browser-menubar.inc.xhtml
++++ b/browser/base/content/browser-menubar.inc.xhtml
+@@ -360,6 +360,8 @@
+               <menuitem id="menu_openAddons"
+                         key="key_openAddons"
+                         command="Tools:Addons" data-l10n-id="menu-tools-extensions-and-themes"/>
++              <menuitem id="menu_openOffoxSites"
++                        command="Tools:OffoxSites" label="Offox Sites"/>
+ 
+               <!-- only one of sync-setup, sync-enable, sync-unverifieditem, sync-syncnowitem or sync-reauthitem will be showing at once -->
+               <menuitem id="sync-setup"
+diff --git a/browser/base/content/browser-sets.inc.xhtml b/browser/base/content/browser-sets.inc.xhtml
+index 7543a6726a..4be1f491ae 100644
+--- a/browser/base/content/browser-sets.inc.xhtml
++++ b/browser/base/content/browser-sets.inc.xhtml
+@@ -102,6 +102,7 @@
+     <command id="Tools:Search" />
+     <command id="Tools:Downloads" />
+     <command id="Tools:Addons" />
++    <command id="Tools:OffoxSites" />
+     <command id="cmd_openUnifiedExtensionsPanel" />
+     <command id="Tools:AIWindow" />
+     <command id="Tools:ChatsHistory" />
+diff --git a/browser/base/content/browser-sets.js b/browser/base/content/browser-sets.js
+index b3615d038a..4f23555055 100644
+--- a/browser/base/content/browser-sets.js
++++ b/browser/base/content/browser-sets.js
+@@ -253,6 +253,11 @@ document.addEventListener(
+               );
+             }
+             break;
++          case "Tools:OffoxSites":
++            switchToTabHavingURI("about:offox", true, {
++              ignoreFragment: "whenComparing",
++            });
++            break;
+           case "cmd_openUnifiedExtensionsPanel":
+             gUnifiedExtensions.openPanel(event);
+             break;
+diff --git a/browser/components/preferences/preferences.js b/browser/components/preferences/preferences.js
+index c76a0647e1..33f737d5c3 100644
+--- a/browser/components/preferences/preferences.js
++++ b/browser/components/preferences/preferences.js
+@@ -467,6 +467,54 @@ const CONFIG_PANES = Object.freeze({
+   },
+ });
+ 
++// Offox never goes online, so the panes and groups that only work with an
++// internet connection (accounts, sync, AI, Suggest, updates...) are left out.
++const OFFOX_HIDDEN_PANES = new Set([
++  "ai",
++  "dnsOverHttps",
++  "experimental",
++  "manageMemories",
++  "moreFromMozilla",
++  "personalizeSmartWindow",
++  "translations",
++]);
++const OFFOX_HIDDEN_GROUPS = new Set([
++  "account",
++  "accountDisabled",
++  "aiFeatures",
++  "browsingProtection",
++  "dataCollection",
++  "defaultBrowserHome",
++  "defaultBrowserSync",
++  "dnsOverHttps",
++  "firefoxSuggest",
++  "importBrowserData",
++  "ipprotection",
++  "moreFromMozillaProducts",
++  "moreFromMozillaPromo",
++  "networkProxy",
++  "recommendations",
++  "searchShortcuts",
++  "searchSuggestions",
++  "support",
++  "sync",
++  "translations",
++  "updates",
++]);
++
++/**
++ * @param {string} id
++ * @param {SettingPaneConfig} config
++ * @returns {SettingPaneConfig}
++ */
++function offoxPaneConfig(id, config) {
++  let groupIds = config.groupIds.filter(g => !OFFOX_HIDDEN_GROUPS.has(g));
++  if (OFFOX_HIDDEN_PANES.has(id) || (config.groupIds.length && !groupIds.length)) {
++    return { ...config, groupIds, visible: () => false };
++  }
++  return { ...config, groupIds };
++}
++
+ var gLastCategory = { category: undefined, subcategory: undefined };
+ const gXULDOMParser = new DOMParser();
+ var gCategoryModules = new Map();
+@@ -561,7 +609,7 @@ function init_all() {
+       continue;
+     }
+ 
+-    SettingPaneManager.registerPane(id, config);
++    SettingPaneManager.registerPane(id, offoxPaneConfig(id, config));
+   }
+ 
+   // customHomepage is registered separately because its groups are set up by
+@@ -610,6 +658,17 @@ function init_all() {
+       let mainWindow = window.browsingContext.topChromeWindow;
+       mainWindow.BrowserAddonUI.openAddonsMgr();
+     });
++    document.getElementById("offoxSitesButton").addEventListener("click", e => {
++      e.preventDefault();
++      if (e.button >= 2) {
++        return;
++      }
++      window.browsingContext.topChromeWindow.switchToTabHavingURI(
++        "about:offox",
++        true,
++        { ignoreFragment: "whenComparing" }
++      );
++    });
+ 
+     document.dispatchEvent(
+       new CustomEvent("Initialized", {
+diff --git a/browser/components/preferences/preferences.xhtml b/browser/components/preferences/preferences.xhtml
+index 1b8c381593..2aefee7765 100644
+--- a/browser/components/preferences/preferences.xhtml
++++ b/browser/components/preferences/preferences.xhtml
+@@ -205,6 +205,11 @@
+       <html:moz-page-nav-button class="hidden-category" view="paneTranslations"/>
+ 
+       <!-- Footer links -->
++      <html:moz-page-nav-button id="offoxSitesButton"
++        slot="secondary-nav"
++        iconsrc="chrome://offox/content/offox.svg"
++        href="about:offox"
++      >Offox Sites</html:moz-page-nav-button>
+       <html:moz-page-nav-button id="addonsButton"
+         slot="secondary-nav"
+         iconsrc="chrome://mozapps/skin/extensions/extension.svg"
+@@ -213,6 +218,7 @@
+       >
+       </html:moz-page-nav-button>
+       <html:moz-page-nav-button id="helpButton"
++        hidden="true"
+         slot="secondary-nav"
+         support-page="preferences"
+         iconsrc="chrome://global/skin/icons/help.svg"
+diff --git a/browser/components/urlbar/UrlbarProviderAboutPages.sys.mjs b/browser/components/urlbar/UrlbarProviderAboutPages.sys.mjs
+index 147076ab2f..777e25e5d4 100644
+--- a/browser/components/urlbar/UrlbarProviderAboutPages.sys.mjs
++++ b/browser/components/urlbar/UrlbarProviderAboutPages.sys.mjs
+@@ -49,13 +49,18 @@ export class UrlbarProviderAboutPages extends UrlbarProvider {
+    */
+   startQuery(queryContext, addCallback) {
+     let searchString = queryContext.trimmedLowerCaseSearchString;
+-    for (const aboutUrl of lazy.AboutPagesUtils.visibleAboutUrls) {
++    // Offox: list the Offox settings page first, so it is not cut off by the
++    // result limit.
++    let aboutUrls = [...lazy.AboutPagesUtils.visibleAboutUrls].sort(
++      (a, b) => (b == "about:offox") - (a == "about:offox")
++    );
++    for (const aboutUrl of aboutUrls) {
+       if (aboutUrl.startsWith(searchString)) {
+         let result = new lazy.UrlbarResult({
+           type: UrlbarUtils.RESULT_TYPE.URL,
+           source: UrlbarUtils.RESULT_SOURCE.OTHER_LOCAL,
+           payload: {
+-            title: aboutUrl,
++            title: aboutUrl == "about:offox" ? "Offox Sites" : aboutUrl,
+             url: aboutUrl,
+             icon: UrlbarUtils.getIconForUrl(aboutUrl),
+           },
+diff --git a/browser/locales/en-US/browser/preferences/preferences.ftl b/browser/locales/en-US/browser/preferences/preferences.ftl
+index a890aeb558..80422efc19 100644
+--- a/browser/locales/en-US/browser/preferences/preferences.ftl
++++ b/browser/locales/en-US/browser/preferences/preferences.ftl
+@@ -1261,10 +1261,10 @@ containers-remove-button2 =
+ ## Account and sync
+ 
+ account-sync-section =
+-    .heading = Account and sync
++    .heading = Profiles and backup
+ 
+-pane-account-sync-title2 = Account and sync
+-    .title = Account and sync
++pane-account-sync-title2 = Profiles and backup
++    .title = Profiles and backup
+ 
+ sync-group-label =
+     .label = Sync

@@ -205,6 +205,11 @@
       <html:moz-page-nav-button class="hidden-category" view="paneTranslations"/>
 
       <!-- Footer links -->
+      <html:moz-page-nav-button id="offoxSitesButton"
+        slot="secondary-nav"
+        iconsrc="chrome://offox/content/offox.svg"
+        href="about:offox"
+      >Offox Sites</html:moz-page-nav-button>
       <html:moz-page-nav-button id="addonsButton"
         slot="secondary-nav"
         iconsrc="chrome://mozapps/skin/extensions/extension.svg"
@@ -213,6 +218,7 @@
       >
       </html:moz-page-nav-button>
       <html:moz-page-nav-button id="helpButton"
+        hidden="true"
         slot="secondary-nav"
         support-page="preferences"
         iconsrc="chrome://global/skin/icons/help.svg"

@@ -467,6 +467,54 @@ const CONFIG_PANES = Object.freeze({
   },
 });
 
+// Offox never goes online, so the panes and groups that only work with an
+// internet connection (accounts, sync, AI, Suggest, updates...) are left out.
+const OFFOX_HIDDEN_PANES = new Set([
+  "ai",
+  "dnsOverHttps",
+  "experimental",
+  "manageMemories",
+  "moreFromMozilla",
+  "personalizeSmartWindow",
+  "translations",
+]);
+const OFFOX_HIDDEN_GROUPS = new Set([
+  "account",
+  "accountDisabled",
+  "aiFeatures",
+  "browsingProtection",
+  "dataCollection",
+  "defaultBrowserHome",
+  "defaultBrowserSync",
+  "dnsOverHttps",
+  "firefoxSuggest",
+  "importBrowserData",
+  "ipprotection",
+  "moreFromMozillaProducts",
+  "moreFromMozillaPromo",
+  "networkProxy",
+  "recommendations",
+  "searchShortcuts",
+  "searchSuggestions",
+  "support",
+  "sync",
+  "translations",
+  "updates",
+]);
+
+/**
+ * @param {string} id
+ * @param {SettingPaneConfig} config
+ * @returns {SettingPaneConfig}
+ */
+function offoxPaneConfig(id, config) {
+  let groupIds = config.groupIds.filter(g => !OFFOX_HIDDEN_GROUPS.has(g));
+  if (OFFOX_HIDDEN_PANES.has(id) || (config.groupIds.length && !groupIds.length)) {
+    return { ...config, groupIds, visible: () => false };
+  }
+  return { ...config, groupIds };
+}
+
 var gLastCategory = { category: undefined, subcategory: undefined };
 const gXULDOMParser = new DOMParser();
 var gCategoryModules = new Map();
@@ -561,7 +609,7 @@ function init_all() {
       continue;
     }
 
-    SettingPaneManager.registerPane(id, config);
+    SettingPaneManager.registerPane(id, offoxPaneConfig(id, config));
   }
 
   // customHomepage is registered separately because its groups are set up by
@@ -609,6 +657,17 @@ function init_all() {
       }
       let mainWindow = window.browsingContext.topChromeWindow;
       mainWindow.BrowserAddonUI.openAddonsMgr();
+    });
+    document.getElementById("offoxSitesButton").addEventListener("click", e => {
+      e.preventDefault();
+      if (e.button >= 2) {
+        return;
+      }
+      window.browsingContext.topChromeWindow.switchToTabHavingURI(
+        "about:offox",
+        true,
+        { ignoreFragment: "whenComparing" }
+      );
     });
 
     document.dispatchEvent(

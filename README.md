@@ -13,7 +13,11 @@ The scripts also make installers that ask whether you want a **normal** or a
 
 ## What you get
 
-- **Storage folders.** In `about:offox` (the fox button on the toolbar) you pick
+- **Offox Sites settings (`about:offox`).** Open it with the **Offox Sites**
+  button on the toolbar, **Offox Sites** in the ☰ menu or the Tools menu, the
+  **Offox Sites** link at the bottom of Settings, or by typing `about:offox`
+  (it is the first suggestion when you type `about:`).
+- **Storage folders.** In `about:offox` you pick
   one or more folders, on your disk or on a USB drive, where your websites live.
   The first time a folder is added, Offox creates these default websites in it:
 
@@ -21,6 +25,7 @@ The scripts also make installers that ask whether you want a **normal** or a
   |---|---|
   | `https://youtube.com` | **OffTube**, a video site. You can upload videos with a title and description, browse every video on the home page, make playlists (with autoplay) and convert old formats. Each video is stored in `videos/<id>/`, which holds the video file, `description.txt`, `created.txt` (the creation date), `title.txt`, a thumbnail and `info.json`. |
   | `https://wikipedia.org` | **Offpedia**, a wiki. Articles are Markdown files with `[[links]]`, an edit history, recent changes, image uploads and search. |
+  | `https://reddit.com` | **Offddit**, a Reddit-style board for notes. Posts have a title, Markdown text and any number of pictures, GIFs and videos (drop, paste or pick them), and live in communities. It has votes, comments with replies, pinned posts, sorting (hot, new, top, most comments) and search. Each post is stored in `posts/<id>/`, which holds `post.json`, `comments.json` and the media files. |
   | `https://software.store` | **Software Store**, for installers and portable apps. It shows versions, platforms, categories and screenshots, with download buttons. |
   | `https://docs.offox` | **Docs**, a word processor (fonts, styles, lists, tables, images). It autosaves and can export or print to PDF. |
   | `https://sheets.offox` | **Sheets**, spreadsheets with about 60 formula functions (SUM, IF, VLOOKUP and more), formatting, several sheets per file, charts and CSV import/export. |
@@ -28,16 +33,24 @@ The scripts also make installers that ask whether you want a **normal** or a
 
 - **Create websites from templates.** In `about:offox → Create a website` you pick
   a template, type an address and a title, and Offox makes the folder. The
-  templates are: the six sites above, a **blog**, a **photo gallery**, a **music
+  templates are: the seven sites above, a **blog**, a **photo gallery**, a **music
   library**, a **document library** (e-books, PDFs, manuals), a **file drive**
   and a **blank** site. Every site is plain HTML, CSS and JS, so you can change
   anything with any editor.
+- **Addresses work with or without `www.`**: `www.youtube.com` opens the same
+  site as `youtube.com`.
 - **FireLine**, at `https://fireline.offox/`, is the only search engine. It is the
   home page, the new tab page and the address-bar search. It searches all of your
   websites: their addresses, titles, pages, videos, wiki articles, apps,
   documents, posts, songs and books. If you forget a site's address, type a word
   from it and FireLine finds it. Unknown addresses show an "offline" page with
   suggestions.
+- **Nothing online in the browser itself.** The address bar suggests only your
+  websites, history, bookmarks, open tabs and FireLine (no Firefox Suggest,
+  sponsored or default top sites). Settings leave out everything that needs the
+  internet: accounts and sync, AI controls, importing from other browsers,
+  Firefox Suggest, search shortcuts, updates, DNS over HTTPS, proxy, Safe
+  Browsing, data collection, translations, Firefox Labs and "More from Mozilla".
 - **Video formats.** Offox plays MP4 (H.264, HEVC, AV1), WebM, MKV, Ogg, MP3,
   AAC, FLAC, Opus and WAV directly. AVI, WMV, FLV, MPEG, old MOV, 3GP and
   DivX/Xvid are converted with FFmpeg when you upload them. The conversion copies
@@ -238,6 +251,9 @@ gets a different letter or mount point.
     videos/<id>/                  video file, title.txt, description.txt,
                                   created.txt, thumbnail.jpg, info.json
     playlists/<id>.json
+  Offddit/
+    communities.json              community names and descriptions
+    posts/<id>/                   post.json, comments.json, pictures, GIFs, videos
   Offpedia/ ...
 ```
 
@@ -249,7 +265,7 @@ reach other sites' folders, and cross-site writes are refused.
 
 | Path | What |
 |---|---|
-| everything else | The Firefox 153.5.1 ESR source. Offox changes it in a few places: `toolkit/xre/nsXREDirProvider.cpp` (portable mode), `browser/components/about/` (`about:offox`), `browser/components/BrowserComponents.manifest` and `moz.build` (startup), `browser/app/profile/firefox.js` + `offox-prefs.js` (offline prefs), `browser/branding/offox/` and the search config in `services/settings/dumps/main/`. |
+| everything else | The Firefox 153.5.1 ESR source. Offox changes it in a few places: `toolkit/xre/nsXREDirProvider.cpp` (portable mode), `browser/components/about/` (`about:offox`), `browser/components/BrowserComponents.manifest` and `moz.build` (startup), `browser/app/profile/firefox.js` + `offox-prefs.js` (offline prefs), `browser/branding/offox/`, the search and top sites config in `services/settings/dumps/main/`, the Offox Sites menu items (`browser/base/content/`), the online-only Settings sections (`browser/components/preferences/`) and the `about:` suggestions (`browser/components/urlbar/UrlbarProviderAboutPages.sys.mjs`). |
 | `browser/components/offox/modules/` | The browser code. `OffoxService` intercepts requests in the browser. The router, site registry, FireLine and media conversion are plain JS modules shared with the Node preview server. |
 | `browser/components/offox/content/` | The `about:offox` settings page. |
 | `browser/components/offox/assets/` | FireLine, the offline and error pages, and the site API script. |
@@ -280,6 +296,7 @@ node tests/gecko-shim.test.mjs                             # browser glue with s
 node tests/e2e-settings.mjs                                # settings page
 node tests/e2e-video.mjs <media folder>                    # needs clip.webm and old.avi
 node tests/e2e-sites.mjs <media folder>                    # needs "Test Artist - Test Song.mp3", photo.png, story.txt, setup.exe
+node tests/e2e-board.mjs <media folder>                    # needs photo.png, anim.gif and clip.webm
 ```
 
 `e2e-video.mjs` also needs `ffmpeg` on the PATH, for the AVI conversion.

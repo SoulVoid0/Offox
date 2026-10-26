@@ -253,6 +253,11 @@ document.addEventListener(
               );
             }
             break;
+          case "Tools:OffoxSites":
+            switchToTabHavingURI("about:offox", true, {
+              ignoreFragment: "whenComparing",
+            });
+            break;
           case "cmd_openUnifiedExtensionsPanel":
             gUnifiedExtensions.openPanel(event);
             break;

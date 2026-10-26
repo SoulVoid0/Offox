@@ -28,7 +28,7 @@ function walk(dir, prefix = "") {
   return out;
 }
 
-const ORDER = ["blank", "video", "wiki", "software", "docs", "sheets", "slides", "blog", "photos", "music", "library", "drive"];
+const ORDER = ["blank", "video", "wiki", "software", "docs", "sheets", "slides", "blog", "board", "photos", "music", "library", "drive"];
 let templates = [];
 for (let name of fs.readdirSync(root)) {
   let dir = path.join(root, name);

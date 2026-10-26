@@ -1,0 +1,13 @@
+{
+  "id": "board",
+  "name": "Notes board (Reddit-style)",
+  "icon": "📌",
+  "description": "A Reddit-style board for notes: posts in communities with Markdown text, pictures, GIFs and videos, votes, comments with replies, sorting and search.",
+  "defaultTitle": "Offddit",
+  "defaultDomain": "reddit.com",
+  "shared": ["util.js", "md.js", "ui.css"],
+  "directories": ["posts"],
+  "searchRules": [
+    { "type": "folders", "dir": "posts", "json": "post.json", "titleKey": "title", "textKeys": ["body", "community", "flair"], "url": "/post.html?id={name}", "kind": "post" }
+  ]
+}

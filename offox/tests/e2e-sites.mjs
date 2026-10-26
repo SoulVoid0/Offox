@@ -15,12 +15,12 @@ try {
   for (let [template, domain] of [["blog", "journal.blog"], ["photos", "photos.gallery"], ["music", "music.player"], ["library", "library.books"], ["drive", "drive.files"], ["blank", "my-site.home"]]) {
     await server.registry.createSite({ root: t.root, domain, template });
   }
-  check(server.registry.list().length === 12, "default sites plus six template sites exist");
+  check(server.registry.list().length === 13, "default sites plus six template sites exist");
 
   // FireLine home lists sites
   await page.goto("https://fireline.offox/");
   await page.waitForSelector(".site");
-  check((await page.locator(".site").count()) === 12, "FireLine home lists every website");
+  check((await page.locator(".site").count()) === 13, "FireLine home lists every website");
   await shot("fireline-home");
 
   // Unknown site

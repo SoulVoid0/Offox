@@ -160,10 +160,15 @@ async function handleSettings(offox, req, url) {
     return { status: 404, headers: { "Content-Type": "text/plain" }, body: "Not found" };
   }
   let types = { html: "text/html; charset=utf-8", css: "text/css", js: "text/javascript", svg: "image/svg+xml" };
+  let body = fs.readFileSync(file);
+  if (name.endsWith(".html")) {
+    // about:offox refers to its files by chrome:// URL; here they are served from /.
+    body = body.toString("utf8").replaceAll("chrome://offox/content/", "/");
+  }
   return {
     status: 200,
     headers: { "Content-Type": types[name.split(".").pop()] || "application/octet-stream" },
-    body: fs.readFileSync(file),
+    body,
   };
 }
 

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{SITE_TITLE}}</title>
+  <meta name="description" content="{{SITE_DESCRIPTION}}">
+  <link rel="stylesheet" href="assets/ui.css">
+  <link rel="stylesheet" href="assets/board.css">
+</head>
+<body>
+  <div class="layout">
+    <main id="main">
+      <div class="sortbar" id="sortbar"></div>
+      <div id="feed"><p class="muted">Loading…</p></div>
+    </main>
+    <div id="side"></div>
+  </div>
+  <script src="/__offox/offox.js"></script>
+  <script src="assets/util.js"></script>
+  <script src="assets/md.js"></script>
+  <script src="assets/board.js"></script>
+  <script>
+    (async () => {
+      let community = Board.cleanCommunity(param("c"));
+      let query = (param("q") || "").trim().toLowerCase();
+      let sort = param("sort") || "hot";
+      Board.header(community);
+      if (community) document.title = `r/${community} – ${SITE_TITLE}`;
+
+      let all = await Board.posts();
+      let communities = await Board.communities(all);
+      let posts = all.filter(p =>
+        (!community || p.community === community) &&
+        (!query || (p.title + "\n" + p.body + "\n" + p.community + "\n" + p.flair).toLowerCase().includes(query)));
+
+      let link = s => {
+        let q = new URLSearchParams(location.search);
+        q.set("sort", s);
+        return "?" + q;
+      };
+      if (community || query) $("#sortbar").append(h("h1", {}, community ? "r/" + community : `Results for “${param("q")}”`));
+      $("#sortbar").append(
+        h("nav", {}, [["hot", "🔥 Hot"], ["new", "🆕 New"], ["top", "⬆ Top"], ["comments", "💬 Most comments"], ["old", "Oldest"]]
+          .map(([s, label]) => h("a", { href: link(s), class: s === sort ? "active" : "" }, label))));
+
+      let feed = $("#feed");
+      feed.replaceChildren(...Board.sort(posts, sort).map(Board.postCard));
+      if (!posts.length) {
+        feed.append(h("div", { class: "empty" },
+          h("h2", {}, query ? "Nothing found" : "No posts yet"),
+          h("p", {}, query ? "Try other words, or search all your websites with FireLine." : "Posts are notes with text, pictures, GIFs or videos. Each one is a folder in posts/."),
+          query
+            ? h("a", { class: "btn", href: `https://fireline.offox/search?q=${encodeURIComponent(param("q"))}` }, "Search with FireLine")
+            : h("a", { class: "btn primary", href: "submit.html" + (community ? `?c=${encodeURIComponent(community)}` : "") }, "＋ Create the first post")));
+      }
+      let pictures = all.reduce((n, p) => n + p.media.length, 0);
+      $("#side").replaceWith(Board.sidebar(communities, community,
+        `${plural(all.length, "post")} · ${plural(pictures, "picture")} and videos · ${communities.length} ${communities.length === 1 ? "community" : "communities"}`));
+    })().catch(e => toast(e.message, 6000));
+  </script>
+</body>
+</html>

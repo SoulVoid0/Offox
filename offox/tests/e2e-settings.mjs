@@ -13,18 +13,19 @@ try {
   await page.goto("https://settings.offox/");
   await page.waitForSelector("body[data-ready]");
   check(await page.isVisible("#welcome"), "first run shows the welcome panel");
+  check((await page.evaluate(() => getComputedStyle(document.querySelector(".nav")).position)) !== "static", "the settings stylesheet is loaded");
   await shot("settings-welcome");
 
   // Add a storage folder by path -> default websites are created
   let storage = path.join(root, "My Sites");
   await page.fill("#add-root-path", storage);
   await page.click("#add-root-form button[type=submit]");
-  await page.waitForFunction(() => document.querySelectorAll("#site-list .card").length === 6);
+  await page.waitForFunction(() => document.querySelectorAll("#site-list .card").length === 7);
   check(!(await page.isVisible("#welcome")), "welcome panel disappears once a folder is added");
   check(fs.existsSync(path.join(storage, "offox-storage.json")), "storage folder is marked");
   let titles = await page.locator("#site-list .card .title").allInnerTexts();
-  check(["OffTube", "Offpedia", "Software Store", "Docs", "Sheets", "Slides"].every(n => titles.some(x => x.includes(n))), "the six default websites are listed");
-  check((await page.locator("#root-list li").innerText()).includes("6 websites"), "folder shows its website count");
+  check(["OffTube", "Offpedia", "Offddit", "Software Store", "Docs", "Sheets", "Slides"].every(n => titles.some(x => x.includes(n))), "the seven default websites are listed");
+  check((await page.locator("#root-list li").innerText()).includes("7 websites"), "folder shows its website count");
 
   // A second folder (missing drive)
   await page.fill("#add-root-path", path.join(root, "Second"));
@@ -49,7 +50,7 @@ try {
   check(newPage.url() === "https://travel.diary/", "the new website opens at its address");
   check((await newPage.title()).includes("Travel diary"), "the new website uses the chosen title");
   await newPage.close();
-  check((await page.locator("#site-list .card").count()) === 7, "the new website is listed");
+  check((await page.locator("#site-list .card").count()) === 8, "the new website is listed");
 
   // Address already in use
   await page.click("button[data-template=video]");
@@ -79,7 +80,7 @@ try {
   check(await page.isDisabled("#delete-button"), "delete needs the address typed first");
   await page.fill("#delete-confirm", "travel.diary");
   await page.click("#delete-button");
-  await page.waitForFunction(() => document.querySelectorAll("#site-list .card").length === 6);
+  await page.waitForFunction(() => document.querySelectorAll("#site-list .card").length === 7);
   check(!fs.existsSync(dir), "deleting removes the website folder");
 
   // Remove a folder (files stay)

@@ -40,6 +40,8 @@ ChromeUtils.defineESModuleGetters(lazy, {
 });
 
 const ROOTS_PREF = "offox.storage.roots";
+// The address bar's top sites (shown when it is empty) are your websites.
+const TOP_SITES_PREF = "browser.newtabpage.activity-stream.default.sites";
 const SETTINGS_URL = "about:offox";
 const HOME_URL = `https://${FIRELINE_HOST}/`;
 // Largest Range response handed to the channel in one go; media elements
@@ -308,12 +310,14 @@ export const OffoxService = {
     await this.registry.load(this.roots);
     this.fireline.invalidate();
     this._updateFixup();
+    this._updateTopSites();
     return this.registry;
   },
 
   /**
    * Adds a storage folder. The first time a folder is used, the default
-   * websites (OffTube, Offpedia, Software Store, Docs, Sheets, Slides) are
+   * websites (OffTube, Offpedia, Offddit, Software Store, Docs, Sheets,
+   * Slides) are
    * created in it.
    */
   async addRoot(path) {
@@ -390,6 +394,7 @@ export const OffoxService = {
     let site = await this.registry.createSite(options);
     this.fireline.invalidate();
     this._updateFixup();
+    this._updateTopSites();
     return siteInfo(site);
   },
 
@@ -398,6 +403,7 @@ export const OffoxService = {
     let site = await this.registry.updateSite(domain, changes);
     this.fireline.invalidate();
     this._updateFixup();
+    this._updateTopSites();
     return siteInfo(site);
   },
 
@@ -405,6 +411,7 @@ export const OffoxService = {
     await this.ready;
     await this.registry.deleteSite(domain);
     this.fireline.invalidate();
+    this._updateTopSites();
   },
 
   setFFmpegPath(path) {
@@ -447,6 +454,18 @@ export const OffoxService = {
     }
   },
 
+  _updateTopSites() {
+    let urls = [HOME_URL, ...this.registry.list().map(s => `https://${s.domain}/`)];
+    let value = urls.join(",");
+    try {
+      if (Services.prefs.getStringPref(TOP_SITES_PREF, "") != value) {
+        Services.prefs.setStringPref(TOP_SITES_PREF, value);
+      }
+    } catch (e) {
+      log(`Could not update the top sites: ${e}`);
+    }
+  },
+
   _onWindowReady(win) {
     if (!this._newTabSet) {
       this._newTabSet = true;
@@ -484,7 +503,7 @@ export const OffoxService = {
     let service = this;
     CustomizableUI.createWidget({
       id: "offox-sites-button",
-      label: "Offox sites",
+      label: "Offox Sites",
       tooltiptext: "Storage folders and websites",
       defaultArea: CustomizableUI.AREA_NAVBAR,
       onCreated(node) {

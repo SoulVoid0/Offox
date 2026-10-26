@@ -11,7 +11,8 @@
 #
 # What it does (safe to run again on an already patched tree):
 #   1. applies fork/patches/*.patch (portable mode, about:offox, startup hook,
-#      offline prefs include)
+#      offline prefs include, Offox Sites menu items and the Settings and
+#      address bar changes)
 #   2. copies src/offox to browser/components/offox and writes its moz.build
 #      and jar.mn (resource://offox/ and chrome://offox/content/)
 #   3. installs the locked offline prefs (browser/app/profile/offox-prefs.js)
@@ -250,6 +251,13 @@ def install_search(ff):
         d = json.load(open(icons, encoding="utf-8"))
         d["data"] = []
         json.dump(d, open(icons, "w", encoding="utf-8", newline="\n"), indent=2)
+    # The address bar's default top sites (Wikipedia, YouTube, Reddit...)
+    # come from this dump; Offox shows your own websites instead.
+    top_sites = os.path.join(dumps, "top-sites.json")
+    if os.path.exists(top_sites):
+        d = json.load(open(top_sites, encoding="utf-8"))
+        d["data"] = []
+        json.dump(d, open(top_sites, "w", encoding="utf-8", newline="\n"), indent=2)
     log("search: FireLine is the only engine")
 
 

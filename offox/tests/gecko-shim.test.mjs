@@ -224,7 +224,8 @@ try {
 
   let root = path.join(tmp, "Sites");
   let created = await OffoxService.addRoot(root);
-  check(created.length === 6, "adding a folder creates the six default websites");
+  check(created.length === 7, "adding a folder creates the seven default websites");
+  check(created.some(site => site.domain === "reddit.com"), "the notes board is one of the default websites");
   check(JSON.parse(prefs.get("offox.storage.roots"))[0] === root, "the folder is saved in offox.storage.roots");
   check(defaults.get("browser.fixup.domainsuffixwhitelist.docs.offox") === true, "site addresses are taught to the address bar");
 
@@ -237,6 +238,10 @@ try {
   check(missing.responseStatus === 404, "unknown sites get the offline page");
   let redirect = await request("http://youtube.com/watch.html?v=1");
   check(redirect.responseStatus === 301 && redirect.headers.location === "https://youtube.com/watch.html?v=1", "http:// is redirected to https://");
+  let www = await request("https://www.youtube.com/watch.html?v=1");
+  check(www.responseStatus === 301 && www.headers.location === "https://youtube.com/watch.html?v=1", "www.youtube.com goes to youtube.com");
+  let topSites = prefs.get("browser.newtabpage.activity-stream.default.sites").split(",");
+  check(topSites[0] === "https://fireline.offox/" && topSites.includes("https://youtube.com/") && topSites.includes("https://reddit.com/"), "the address bar's top sites are FireLine and your websites");
 
   // Writes through the site API with a request body
   let write = await request("https://youtube.com/__offox/api/write?path=videos/abc/title.txt", {
@@ -281,6 +286,11 @@ try {
   Services.prefs.setStringPref("offox.storage.roots", "[]");
   await OffoxService.ready;
   check((await request("https://youtube.com/")).responseStatus === 404, "removing the folder from the pref unloads its sites");
+  // about:offox is a chrome:// page shown at about:offox, where relative URLs
+  // do not resolve: every file it loads must be named by its full URL.
+  let settingsHtml = fs.readFileSync(path.join(SRC, "content", "settings.html"), "utf8");
+  let refs = [...settingsHtml.matchAll(/\b(?:src|href)="([^"]+)"/g)].map(m => m[1]).filter(u => !u.startsWith("#"));
+  check(refs.length && refs.every(u => /^(chrome|https):\/\//.test(u)), "about:offox loads its files by chrome:// URL");
   console.log("All Gecko glue checks passed.");
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });

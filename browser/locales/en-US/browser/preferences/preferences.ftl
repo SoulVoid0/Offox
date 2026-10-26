@@ -1261,10 +1261,10 @@ containers-remove-button2 =
 ## Account and sync
 
 account-sync-section =
-    .heading = Account and sync
+    .heading = Profiles and backup
 
-pane-account-sync-title2 = Account and sync
-    .title = Account and sync
+pane-account-sync-title2 = Profiles and backup
+    .title = Profiles and backup
 
 sync-group-label =
     .label = Sync

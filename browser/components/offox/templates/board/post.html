@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Post – {{SITE_TITLE}}</title>
+  <meta name="fireline" content="noindex">
+  <link rel="stylesheet" href="assets/ui.css">
+  <link rel="stylesheet" href="assets/board.css">
+</head>
+<body>
+  <div class="layout">
+    <main id="main"><p class="muted">Loading…</p></main>
+    <div id="side"></div>
+  </div>
+  <script src="/__offox/offox.js"></script>
+  <script src="assets/util.js"></script>
+  <script src="assets/md.js"></script>
+  <script src="assets/board.js"></script>
+  <script>
+    (async () => {
+      let id = param("id");
+      let post = id && await Board.post(id);
+      Board.header(post && post.community);
+      let main = $("#main");
+      if (!post) {
+        main.replaceChildren(h("div", { class: "empty" }, h("h2", {}, "This post does not exist"), h("a", { href: "./" }, "Back to the front page")));
+        return;
+      }
+      document.title = `${post.title} – r/${post.community}`;
+      let comments = post.comments;
+
+      // ------------------------------------------------------------ gallery
+      let gallery = null;
+      if (post.media.length) {
+        let index = 0;
+        let stage = h("div", { class: "stage" });
+        let counter = h("span", { class: "count" });
+        let show = i => {
+          index = (i + post.media.length) % post.media.length;
+          let node = Board.mediaNode(post.id, post.media[index]);
+          if (!Board.isVideo(post.media[index])) {
+            node.title = "Open full size";
+            node.addEventListener("click", () => window.open(node.src, "_blank"));
+          }
+          stage.replaceChildren(node);
+          counter.textContent = post.media.length > 1 ? `${index + 1} / ${post.media.length}` : "";
+        };
+        gallery = h("div", { class: "gallery" }, stage,
+          post.media.length > 1 ? h("button", { class: "nav prev", onclick: () => show(index - 1), "aria-label": "Previous" }, "‹") : null,
+          post.media.length > 1 ? h("button", { class: "nav next", onclick: () => show(index + 1), "aria-label": "Next" }, "›") : null,
+          counter);
+        show(0);
+      }
+
+      // ----------------------------------------------------------- comments
+      let saveComments = () => Board.saveComments(post.id, comments);
+      let commentForm = (parent, onDone, initial = "", cancel = true) => {
+        let area = h("textarea", { rows: 4, placeholder: "What are your thoughts? (Markdown works)" }, initial);
+        let form = h("form", { class: "comment-form" }, area,
+          h("div", { class: "row" },
+            cancel ? h("button", { type: "button", class: "btn", onclick: () => onDone(null) }, "Cancel") : null,
+            h("button", { class: "btn primary" }, initial ? "Save" : "Comment")));
+        form.addEventListener("submit", e => {
+          e.preventDefault();
+          let text = area.value.trim();
+          if (text) onDone(text);
+        });
+        return form;
+      };
+      let renderComments = () => {
+        let byParent = new Map();
+        for (let c of comments) {
+          let key = c.parent || "";
+          if (!byParent.has(key)) byParent.set(key, []);
+          byParent.get(key).push(c);
+        }
+        let tree = parent => (byParent.get(parent) || [])
+          .sort((a, b) => b.score - a.score || new Date(a.created) - new Date(b.created))
+          .map(c => {
+            let body = Board.renderMarkdown(c.body, post.id);
+            let slot = h("div", { class: "reply-slot" });
+            let node = h("div", { class: "comment", id: "c-" + c.id },
+              h("div", { class: "meta" }, h("b", {}, "you"), " · ", timeAgo(c.created), c.edited ? " · edited" : ""),
+              body,
+              h("div", { class: "actions" },
+                Board.voteBox("c:" + post.id + ":" + c.id, Number(c.score) || 0, async delta => { c.score = (Number(c.score) || 0) + delta; await saveComments(); }, { horizontal: true }),
+                h("button", { class: "link", onclick: () => slot.replaceChildren(commentForm(c.id, async text => {
+                  slot.replaceChildren();
+                  if (!text) return;
+                  comments.push({ id: Offox.id(8), parent: c.id, body: text, created: new Date().toISOString(), score: 1 });
+                  await saveComments();
+                  renderComments();
+                })) }, "💬 Reply"),
+                h("button", { class: "link", onclick: () => slot.replaceChildren(commentForm(c.id, async text => {
+                  slot.replaceChildren();
+                  if (!text) return;
+                  c.body = text;
+                  c.edited = new Date().toISOString();
+                  await saveComments();
+                  renderComments();
+                }, c.body)) }, "✏ Edit"),
+                h("button", { class: "link", onclick: async () => {
+                  if (!confirm("Delete this comment and its replies?")) return;
+                  let gone = new Set([c.id]);
+                  let grew = true;
+                  while (grew) {
+                    grew = false;
+                    for (let x of comments) if (x.parent && gone.has(x.parent) && !gone.has(x.id)) { gone.add(x.id); grew = true; }
+                  }
+                  comments = comments.filter(x => !gone.has(x.id));
+                  await saveComments();
+                  renderComments();
+                } }, "🗑 Delete")),
+              slot,
+              h("div", { class: "children" }, tree(c.id)));
+            return node;
+          });
+        $("#comment-list").replaceChildren(...tree(""));
+        $("#comment-count").textContent = plural(comments.length, "comment");
+      };
+
+      main.replaceChildren(
+        h("article", { class: "card full" },
+          Board.voteBox("p:" + post.id, post.score, delta => Board.bump(post, delta)),
+          h("div", { class: "content" },
+            h("div", { class: "meta" },
+              h("a", { class: "community", href: `./?c=${encodeURIComponent(post.community)}` }, "r/" + post.community),
+              " · ", h("span", { title: new Date(post.created).toLocaleString() }, timeAgo(post.created)),
+              post.edited ? ` · edited ${timeAgo(post.edited)}` : ""),
+            h("h1", {}, post.title, post.flair ? h("span", { class: "flair" }, post.flair) : null),
+            gallery,
+            post.body ? Board.renderMarkdown(post.body, post.id) : null,
+            h("div", { class: "actions" },
+              h("a", { href: "#comments" }, "💬 ", h("span", { id: "comment-count" })),
+              h("a", { href: `submit.html?id=${encodeURIComponent(post.id)}` }, "✏ Edit"),
+              h("button", { class: "link", onclick: async () => {
+                let meta = await Offox.readJSON(`posts/${post.id}/post.json`, post.meta);
+                meta.pinned = !meta.pinned;
+                await Board.savePost(post.id, meta);
+                location.reload();
+              } }, post.pinned ? "📌 Unpin" : "📌 Pin"),
+              h("button", { class: "link", onclick: async () => {
+                if (!confirm(`Delete “${post.title}” with its pictures and comments?`)) return;
+                await Offox.remove(`posts/${post.id}`);
+                location.href = `./?c=${encodeURIComponent(post.community)}`;
+              } }, "🗑 Delete")))),
+        h("section", { class: "comments", id: "comments" },
+          commentForm("", async text => {
+            if (!text) {
+              $("#comments textarea").value = "";
+              return;
+            }
+            comments.push({ id: Offox.id(8), parent: "", body: text, created: new Date().toISOString(), score: 1 });
+            await saveComments();
+            $("#comments textarea").value = "";
+            renderComments();
+          }, "", false),
+          h("div", { id: "comment-list" })));
+      renderComments();
+
+      let all = await Board.posts();
+      $("#side").replaceWith(Board.sidebar(await Board.communities(all), post.community));
+    })().catch(e => toast(e.message, 6000));
+  </script>
+</body>
+</html>

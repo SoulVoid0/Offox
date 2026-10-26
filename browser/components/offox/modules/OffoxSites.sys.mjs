@@ -38,6 +38,12 @@ export const DEFAULT_SITES = [
     description: "Your own offline encyclopedia.",
   },
   {
+    template: "board",
+    domain: "reddit.com",
+    title: "Offddit",
+    description: "Notes, pictures and GIFs, sorted into communities.",
+  },
+  {
     template: "software",
     domain: "software.store",
     title: "Software Store",
@@ -169,12 +175,14 @@ export class SiteRegistry {
     }
   }
 
-  /** Finds the site that answers for a host ("www." is optional). */
+  /** Finds the site that answers for a host ("www." is optional both ways). */
   lookup(host) {
-    host = String(host || "").toLowerCase();
+    host = String(host || "").toLowerCase().replace(/\.$/, "");
     return (
       this.sites.get(host) ||
-      (host.startsWith("www.") ? this.sites.get(host.slice(4)) : null) ||
+      (host.startsWith("www.")
+        ? this.sites.get(host.slice(4))
+        : this.sites.get(`www.${host}`)) ||
       null
     );
   }

@@ -490,8 +490,13 @@ window.addEventListener("scroll", highlightNav, { passive: true });
 
 // --------------------------------------------------------------------- init
 
-templates = await backend.call("templates");
-await refresh();
+try {
+  templates = await backend.call("templates");
+  await refresh();
+} catch (e) {
+  console.error(e);
+  toast(`Offox could not load its settings: ${e.message || e}`);
+}
 renderTemplates();
 highlightNav();
 document.body.dataset.ready = "true";
