@@ -12,6 +12,9 @@ category app-startup nsBrowserGlue @mozilla.org/browser/browserglue;1 applicatio
 category first-startup-new-profile resource:///modules/AboutNewTabResourceMapping.sys.mjs AboutNewTabResourceMapping.firstStartupNewProfile
 
 # Browser global components initializing before UI startup
+# Offox answers every web request from the storage folders; it must be ready
+# before anything loads.
+category browser-before-ui-startup resource://offox/modules/OffoxService.sys.mjs OffoxService.init
 category browser-before-ui-startup resource:///modules/sessionstore/SessionStore.sys.mjs SessionStore.init
 category browser-before-ui-startup resource:///modules/BuiltInThemes.sys.mjs BuiltInThemes.maybeInstallActiveBuiltInTheme
 #ifdef MOZ_NORMANDY

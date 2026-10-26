@@ -49,6 +49,7 @@ DIRS += [
     "mozcachedohttp",
     "multilineeditor",
     "newtab",
+    "offox",
     "originattributes",
     "pagedata",
     "passwordmgr",

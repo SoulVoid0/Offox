@@ -3627,3 +3627,6 @@ pref("distribution.mozillaonline.ignore", true);
 #ifdef XP_MACOSX
   pref("browser.macAppMenu.setAsDefaultShown", false);
 #endif
+
+// Offox: offline lockdown, FireLine home page.
+#include offox-prefs.js

@@ -40,10 +40,10 @@ whether you want a **normal** or a **portable** install.
   AAC, FLAC, Opus and WAV directly. AVI, WMV, FLV, MPEG, old MOV, 3GP and
   DivX/Xvid are converted with FFmpeg when you upload them. The conversion copies
   the streams without loss when it can and re-encodes otherwise. See
-  [docs/VIDEO-FORMATS.md](docs/VIDEO-FORMATS.md).
+  [offox/docs/VIDEO-FORMATS.md](offox/docs/VIDEO-FORMATS.md).
 - **No internet, enforced.** All proxies, DNS, telemetry, updates, Safe
   Browsing, studies, WebRTC, push, captive-portal checks and prefetching
-  are turned off with *locked* prefs ([fork/prefs/offox-prefs.js](fork/prefs/offox-prefs.js)).
+  are turned off with *locked* prefs ([browser/app/profile/offox-prefs.js](browser/app/profile/offox-prefs.js)).
   Anything that is not an http(s) request goes to a SOCKS proxy that never
   answers.
 
@@ -54,11 +54,11 @@ run downloads Firefox ESR; after that, everything works offline.
 
 ```sh
 # Fedora
-dev/run-dev.sh
+offox/dev/run-dev.sh
 ```
 ```powershell
 # Windows
-powershell -ExecutionPolicy Bypass -File dev\run-dev.ps1
+powershell -ExecutionPolicy Bypass -File offox\dev\run-dev.ps1
 ```
 
 On the first start, the settings page opens and asks for a storage folder.
@@ -67,22 +67,22 @@ You can also work on websites and templates in any browser with the preview
 server. It runs the same request router as the browser:
 
 ```sh
-node dev/preview-server.mjs --root ~/OffoxSites
+node offox/dev/preview-server.mjs --root ~/OffoxSites
 chromium --proxy-server=http://127.0.0.1:8444 --ignore-certificate-errors https://fireline.offox/
 # settings page: https://settings.offox/
 ```
 
 ## Build Offox and the installers
 
-Offox is a set of patches and files applied to the Firefox ESR source. The
-version is in [fork/FIREFOX_VERSION](fork/FIREFOX_VERSION). The first build
-needs about 40 GB of disk space and takes a few hours.
+This repository is the complete Firefox 153.5.1 ESR source with the Offox
+changes applied (see [Project layout](#project-layout)), so it builds in place.
+The first build needs about 40 GB of disk space and takes a few hours.
 
 ### Fedora
 
 ```sh
 git clone https://github.com/SoulVoid0/Offox && cd Offox
-installer/build-fedora.sh            # clones Firefox ESR next to the repo, applies Offox, builds
+offox/installer/build-fedora.sh      # installs build tools, builds Offox and both installers
 ```
 
 The installers are written to `dist/`:
@@ -106,12 +106,12 @@ For video conversion, install FFmpeg: `sudo dnf install ffmpeg-free`, or
 1. Install [MozillaBuild](https://wiki.mozilla.org/MozillaBuild) and the Visual
    Studio 2022 Build Tools. `mach bootstrap` tells you exactly which parts are
    needed.
-2. Optional: put an LGPL FFmpeg build in `installer\windows\ffmpeg\` (see the
+2. Optional: put an LGPL FFmpeg build in `offox\installer\windows\ffmpeg\` (see the
    README there) so video conversion works out of the box.
 3. In the MozillaBuild shell (`C:\mozilla-build\start-shell.bat`):
    ```sh
    git clone https://github.com/SoulVoid0/Offox && cd Offox
-   installer/build-windows.sh
+   offox/installer/build-windows.sh
    ```
 
 The result is `dist\Offox-<version>-Setup.exe`. Its second page asks for the
@@ -128,10 +128,13 @@ Silent installs: `Offox-Setup.exe /S`, or `Offox-Setup.exe /S /PORTABLE /D=E:\Of
 ### Manual build (either system)
 
 ```sh
-git clone --branch esr153 --depth 1 https://github.com/mozilla-firefox/firefox.git firefox-esr
-python3 Offox/fork/apply.py firefox-esr          # add --platform windows on Windows
-cd firefox-esr && ./mach bootstrap && ./mach build && ./mach run
+export MOZCONFIG=$PWD/offox/fork/mozconfig.linux   # or mozconfig.windows
+./mach bootstrap && ./mach build && ./mach run
 ```
+
+To move Offox to a newer Firefox ESR later, run
+`python3 offox/fork/apply.py <new firefox source>`. It applies the patches in
+`offox/fork/patches/` and copies the Offox files into that tree.
 
 ## How portable mode works
 
@@ -139,7 +142,7 @@ A portable install has an empty file called `offox-portable` next to the `offox`
 / `offox.exe` program. When Offox finds it at startup, it keeps its whole
 profile (bookmarks, history, settings, the list of storage folders) in a `Data`
 folder beside the program instead of in your home folder. This is done in a
-small patch, [fork/patches/0001-portable-mode.patch](fork/patches/0001-portable-mode.patch).
+small patch, [toolkit/xre/nsXREDirProvider.cpp](toolkit/xre/nsXREDirProvider.cpp) (also kept as [offox/fork/patches/0001-portable-mode.patch](offox/fork/patches/0001-portable-mode.patch)).
 On a portable install, storage folders inside the Offox folder (such as
 `Offox\Sites`) are saved relative to it. They keep working when the USB drive
 gets a different letter or mount point.
@@ -159,31 +162,34 @@ gets a different letter or mount point.
 ```
 
 A site's pages can read and write files in their own folder through
-`/__offox/offox.js`. See [docs/SITE-API.md](docs/SITE-API.md). Pages cannot
+`/__offox/offox.js`. See [offox/docs/SITE-API.md](offox/docs/SITE-API.md). Pages cannot
 reach other sites' folders, and cross-site writes are refused.
 
 ## Project layout
 
 | Path | What |
 |---|---|
-| `src/offox/modules/` | The browser code. `OffoxService` intercepts requests in the browser. The router, site registry, FireLine and media conversion are plain JS modules shared with the Node preview server. |
-| `src/offox/content/` | The `about:offox` settings page. |
-| `src/offox/assets/` | FireLine, the offline and error pages, and the site API script. |
-| `src/offox/templates/` | Website templates (`template.json` plus the site's files). |
-| `fork/` | `apply.py`, the patches, the locked prefs, the branding and the mozconfigs. |
-| `installer/` | The NSIS script (Windows), the `.run` installer and RPM spec (Linux), and the build scripts. |
-| `dev/` | The preview server and the developer-mode runners. |
-| `tests/` | End-to-end tests in Chromium through the preview server. |
+| everything else | The Firefox 153.5.1 ESR source. Offox changes it in a few places: `toolkit/xre/nsXREDirProvider.cpp` (portable mode), `browser/components/about/` (`about:offox`), `browser/components/BrowserComponents.manifest` and `moz.build` (startup), `browser/app/profile/firefox.js` + `offox-prefs.js` (offline prefs), `browser/branding/offox/` and the search config in `services/settings/dumps/main/`. |
+| `browser/components/offox/modules/` | The browser code. `OffoxService` intercepts requests in the browser. The router, site registry, FireLine and media conversion are plain JS modules shared with the Node preview server. |
+| `browser/components/offox/content/` | The `about:offox` settings page. |
+| `browser/components/offox/assets/` | FireLine, the offline and error pages, and the site API script. |
+| `browser/components/offox/templates/` | Website templates (`template.json` plus the site's files). |
+| `offox/fork/` | The mozconfigs, the patches as separate files, the branding images and `apply.py` (moves Offox to a newer Firefox). |
+| `offox/installer/` | The NSIS script (Windows), the `.run` installer and RPM spec (Linux), and the build scripts. |
+| `offox/dev/` | The preview server and the developer-mode runners. |
+| `offox/tests/` | End-to-end tests in Chromium through the preview server. |
 
-More detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+More detail: [offox/docs/ARCHITECTURE.md](offox/docs/ARCHITECTURE.md).
 
 ## Tests
 
 ```sh
+cd offox
 npm install playwright      # once, if not installed
-node tools/check-syntax.mjs
+node --experimental-vm-modules tools/check-syntax.mjs
 node tools/build-template-index.mjs --check
 node tests/formula.test.cjs
+node tests/gecko-shim.test.mjs
 node tests/e2e-video.mjs <media folder>
 node tests/e2e-sites.mjs <media folder>
 node tests/e2e-settings.mjs
@@ -191,15 +197,16 @@ node tests/e2e-settings.mjs
 
 ## Licences
 
-The Offox code in this repository is under the [MIT licence](LICENSE). Files
-with an MPL 2.0 header, and everything that becomes part of the Firefox build,
-are under the Mozilla Public License 2.0, like Firefox itself.
+Offox is a modified Firefox, so the repository is under the
+[Mozilla Public License 2.0](LICENSE), like Firefox. Offox's own browser files
+carry MPL 2.0 headers. The helper scripts in `offox/` that have no header are
+also available under the [MIT licence](offox/LICENSE-MIT).
 
 **Why FFmpeg and not VLC.** VLC's code (libVLC) is GPL/LGPL, and copying parts of
 it into a Firefox fork would make the browser's licensing much harder. Offox
 does not copy any VLC code. Instead, it calls an **FFmpeg** program, which is
 the same decoding library VLC uses for most formats, as a separate process. That
-keeps Offox under MPL/MIT. Firefox already uses FFmpeg's decoders internally
+keeps Offox under the MPL. Firefox already uses FFmpeg's decoders internally
 for H.264, HEVC, AAC and others. The trade-off is that a few formats are
 converted once when you upload them, rather than played directly. If you bundle
 FFmpeg with the Windows installer, use an LGPL build.

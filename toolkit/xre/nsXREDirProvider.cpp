@@ -1103,6 +1103,35 @@ nsresult nsXREDirProvider::RestoreUserDataProfileDirectoryFromGTest(
   return NS_OK;
 }
 
+// Offox portable mode: when a file named "offox-portable" sits next to the
+// executable, all user data (profiles, caches) lives in a "Data" folder beside
+// it instead of in the user's home folder, so Offox can run from a USB drive.
+static bool GetOffoxPortableDataDir(bool aLocal, nsIFile** aFile) {
+  nsCOMPtr<nsIFile> binary;
+  if (NS_FAILED(XRE_GetBinaryPath(getter_AddRefs(binary))) || !binary) {
+    return false;
+  }
+  nsCOMPtr<nsIFile> dir;
+  if (NS_FAILED(binary->GetParent(getter_AddRefs(dir))) || !dir) {
+    return false;
+  }
+  nsCOMPtr<nsIFile> marker;
+  if (NS_FAILED(dir->Clone(getter_AddRefs(marker))) ||
+      NS_FAILED(marker->Append(u"offox-portable"_ns))) {
+    return false;
+  }
+  bool exists = false;
+  if (NS_FAILED(marker->Exists(&exists)) || !exists) {
+    return false;
+  }
+  if (NS_FAILED(dir->Append(u"Data"_ns)) ||
+      (aLocal && NS_FAILED(dir->Append(u"Cache"_ns)))) {
+    return false;
+  }
+  dir.forget(aFile);
+  return true;
+}
+
 // Return the home directory that will contain user data
 nsresult nsXREDirProvider::GetUserDataDirectoryHome(nsIFile** aFile,
                                                     bool aLocal,
@@ -1115,6 +1144,11 @@ nsresult nsXREDirProvider::GetUserDataDirectoryHome(nsIFile** aFile,
   }
   if (!aLocal && gDataDirHome) {
     return gDataDirHome->Clone(aFile);
+  }
+
+  if (GetOffoxPortableDataDir(aLocal, getter_AddRefs(localDir))) {
+    localDir.forget(aFile);
+    return NS_OK;
   }
 
 #if defined(XP_MACOSX)
