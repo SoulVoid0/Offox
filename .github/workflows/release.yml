@@ -83,6 +83,7 @@ jobs:
         run: python3 offox/tests/smoke-browser.py dist/squashfs-root/usr/lib/offox/offox shots
       - name: Run on other Linux distributions
         run: |
+          failed=""
           for image in fedora:latest debian:stable-slim archlinux:latest opensuse/tumbleweed:latest; do
             case "$image" in
               fedora*) deps="dnf install -y -q gtk3 alsa-lib dbus-glib" ;;
@@ -92,11 +93,18 @@ jobs:
             esac
             name=$(echo "$image" | tr '/:' '--')
             echo "::group::$image"
-            docker run --rm -v "$PWD/dist/squashfs-root:/app:ro" -v "$PWD/shots:/shots" "$image" sh -c \
-              "$deps >/dev/null && HOME=/tmp timeout 180 /app/AppRun --headless --screenshot /shots/$name.png https://fireline.offox/"
-            test -s "shots/$name.png" && echo "Offox runs on $image"
+            docker run --rm -e HOME=/tmp -e MOZ_HEADLESS=1 \
+              -v "$PWD/dist/squashfs-root:/app:ro" -v "$PWD/shots:/shots" "$image" sh -c \
+              "($deps) >/dev/null 2>&1; echo 'dependencies installed'; /app/AppRun --headless --screenshot /shots/$name.png https://fireline.offox/; echo \"offox exited with \$?\"" &
+            pid=$!
+            ( sleep 240; docker ps -q | xargs -r docker kill ) &
+            killer=$!
+            wait $pid || true
+            kill $killer 2>/dev/null || true
             echo "::endgroup::"
+            if [ -s "shots/$name.png" ]; then echo "Offox runs on $image"; else echo "::error::Offox did not run on $image"; failed="$failed $image"; fi
           done
+          [ -z "$failed" ]
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: screenshots-linux, path: shots, retention-days: 14 }
