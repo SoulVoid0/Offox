@@ -143,7 +143,8 @@ try:
           };""")
         state["engine"] = driver.execute_async_script("""
           let done = arguments[arguments.length - 1];
-          let search = window.Services?.search || Services.search;
+          let { SearchService: search } = ChromeUtils.importESModule(
+            "moz-src:///toolkit/components/search/SearchService.sys.mjs");
           search.init().then(() => search.getDefault())
             .then(e => done(e?.name || ''), e => done('error: ' + e));""")
         print("  window:", json.dumps(state))
