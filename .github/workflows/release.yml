@@ -168,6 +168,7 @@ jobs:
   release:
     name: Publish the release
     needs: [test-linux, test-windows]
+    if: always() && needs.test-linux.result == 'success' && needs.test-windows.result == 'success'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
