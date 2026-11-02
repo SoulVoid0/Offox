@@ -36,7 +36,22 @@ def shot(name):
 
 
 def wait(predicate, timeout=60):
-    return WebDriverWait(driver, timeout).until(lambda d: predicate())
+    def attempt(_):
+        try:
+            return predicate()
+        except Exception:
+            return False
+    return WebDriverWait(driver, timeout).until(attempt)
+
+
+def open_privileged(url):
+    # Marionette refuses to navigate content to privileged about: pages.
+    with driver.context(driver.CONTEXT_CHROME):
+        driver.execute_script("""
+          gBrowser.selectedBrowser.fixupAndLoadURIString(arguments[0], {
+            triggeringPrincipal: Services.scriptSecurityManager.getSystemPrincipal(),
+          });""", url)
+    wait(lambda: driver.current_url.startswith(url))
 
 
 options = Options()
@@ -51,7 +66,7 @@ try:
     print("Browser:", caps.get("browserName"), caps.get("browserVersion"))
 
     # about:offox
-    driver.get("about:offox")
+    open_privileged("about:offox")
     wait(lambda: driver.execute_script("return document.body.dataset.ready == 'true'"))
     check(driver.title == "Offox settings", "about:offox opens")
     position = driver.execute_script("return getComputedStyle(document.querySelector('.nav')).position")
@@ -95,7 +110,7 @@ try:
     check("not one of your websites" in driver.page_source, "unknown addresses show the offline page")
 
     # Settings without the online-only sections.
-    driver.get("about:preferences")
+    open_privileged("about:preferences")
     time.sleep(4)
     nav = driver.execute_script("""
       let ids = [...document.querySelectorAll('#categories moz-page-nav-button')]
