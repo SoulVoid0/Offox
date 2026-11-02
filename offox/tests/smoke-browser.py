@@ -57,6 +57,7 @@ def open_privileged(url):
 options = Options()
 options.binary_location = binary
 options.add_argument("--headless")
+options.add_argument("-remote-allow-system-access")
 options.add_argument("--width=1280")
 options.add_argument("--height=900")
 driver = webdriver.Firefox(options=options)
