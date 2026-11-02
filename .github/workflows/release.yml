@@ -89,7 +89,7 @@ jobs:
               fedora*) deps="dnf install -y -q gtk3 alsa-lib dbus-glib" ;;
               debian*) deps="apt-get update -q && apt-get install -y -q libgtk-3-0 libasound2 libx11-xcb1 libdbus-glib-1-2" ;;
               arch*) deps="pacman -Sy --noconfirm gtk3 alsa-lib dbus-glib" ;;
-              opensuse*) deps="zypper -q -n install gtk3 alsa-lib dbus-1-glib" ;;
+              opensuse*) deps="zypper -q -n install gtk3 alsa-lib dbus-1-glib libX11-xcb1" ;;
             esac
             name=$(echo "$image" | tr '/:' '--')
             echo "::group::$image"
