@@ -26,7 +26,6 @@ jobs:
     outputs:
       done: ${{ steps.build.outputs.done }}
     env:
-      SCCACHE_DIR: ${{ github.workspace }}/../sccache
       SCCACHE_CACHE_SIZE: 4500M
       SCCACHE_IDLE_TIMEOUT: "0"
     steps:
@@ -58,12 +57,14 @@ jobs:
           fi
           # A little swap helps the Rust and link steps on small runners.
           sudo fallocate -l 6G /swapfile2 && sudo chmod 600 /swapfile2 && sudo mkswap /swapfile2 >/dev/null && sudo swapon /swapfile2 || true
+          echo "SCCACHE_DIR=$RUNNER_TEMP/sccache" >> "$GITHUB_ENV"
           nproc; free -h
 
       - name: Install packaging tools
         run: |
           sudo apt-get update -q
-          sudo apt-get install -y -q nsis unzip xz-utils file
+          # msitools: unpacking the Windows SDK and MSVC for the Windows build.
+          sudo apt-get install -y -q nsis unzip xz-utils file msitools
 
       - name: Install sccache
         uses: mozilla-actions/sccache-action@v0.0.9
