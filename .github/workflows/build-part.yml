@@ -1,0 +1,106 @@
+# One part of an Offox build (called by release.yml). Firefox takes hours to
+# compile, so a build that would pass GitHub's 6 hour job limit stops early,
+# saves its compiler cache, and the next part continues from that cache.
+name: Build part
+
+on:
+  workflow_call:
+    inputs:
+      platform:
+        description: linux or windows
+        type: string
+        required: true
+      part:
+        type: number
+        required: true
+    outputs:
+      done:
+        description: "true when Offox was built and packaged"
+        value: ${{ jobs.build.outputs.done }}
+
+jobs:
+  build:
+    name: ${{ inputs.platform }} (part ${{ inputs.part }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 355
+    outputs:
+      done: ${{ steps.build.outputs.done }}
+    env:
+      SCCACHE_CACHE_SIZE: 4500M
+      SCCACHE_IDLE_TIMEOUT: "0"
+    steps:
+      - name: Free disk space
+        run: |
+          df -h / /mnt || true
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup \
+            /opt/hostedtoolcache/CodeQL /usr/local/share/boost /usr/share/swift \
+            /usr/local/share/powershell /usr/local/share/chromium /usr/local/lib/node_modules
+          sudo docker image prune -af >/dev/null 2>&1 || true
+          sudo swapoff -a || true
+          sudo rm -f /mnt/swapfile || true
+          df -h / /mnt || true
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Choose the build folder
+        run: |
+          # Put the objects on whichever disk has more room.
+          root_free=$(df --output=avail -k / | tail -1)
+          mnt_free=$(df --output=avail -k /mnt 2>/dev/null | tail -1 || echo 0)
+          if [ "${mnt_free:-0}" -gt "$root_free" ]; then
+            sudo mkdir -p /mnt/offox-obj && sudo chown "$USER" /mnt/offox-obj
+            echo "OFFOX_OBJDIR=/mnt/offox-obj" >> "$GITHUB_ENV"
+          else
+            echo "OFFOX_OBJDIR=$GITHUB_WORKSPACE/obj-${{ inputs.platform }}" >> "$GITHUB_ENV"
+          fi
+          # A little swap helps the Rust and link steps on small runners.
+          sudo fallocate -l 6G /swapfile2 && sudo chmod 600 /swapfile2 && sudo mkswap /swapfile2 >/dev/null && sudo swapon /swapfile2 || true
+          echo "SCCACHE_DIR=$RUNNER_TEMP/sccache" >> "$GITHUB_ENV"
+          nproc; free -h
+
+      - name: Install packaging tools
+        run: |
+          sudo apt-get update -q
+          # msitools: unpacking the Windows SDK and MSVC for the Windows build.
+          sudo apt-get install -y -q nsis unzip xz-utils file msitools
+
+      - name: Install sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: Restore the compiler cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.SCCACHE_DIR }}
+          key: sccache-${{ inputs.platform }}-${{ github.run_id }}-${{ inputs.part }}
+          restore-keys: |
+            sccache-${{ inputs.platform }}-${{ github.run_id }}-
+            sccache-${{ inputs.platform }}-
+
+      - name: Build
+        id: build
+        env:
+          OFFOX_SCCACHE: ${{ env.SCCACHE_PATH }}
+        run: |
+          # Leave time to save the cache and package before the 6 hour limit.
+          offox/ci/build.sh ${{ inputs.platform }} 285
+
+      - name: Save the compiler cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.SCCACHE_DIR }}
+          key: sccache-${{ inputs.platform }}-${{ github.run_id }}-${{ inputs.part }}-${{ github.run_attempt }}
+
+      - name: Upload the installer
+        if: steps.build.outputs.done == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: offox-${{ inputs.platform }}
+          path: |
+            dist/*.AppImage
+            dist/*-Setup.exe
+          if-no-files-found: error
+          retention-days: 5
+          compression-level: 0

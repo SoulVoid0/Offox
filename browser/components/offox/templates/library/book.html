@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{SITE_TITLE}}</title>
+  <meta name="fireline" content="noindex">
+  <link rel="stylesheet" href="assets/ui.css">
+  <link rel="stylesheet" href="assets/library.css">
+</head>
+<body>
+  <main id="main"></main>
+  <script src="/__offox/offox.js"></script>
+  <script src="assets/util.js"></script>
+  <script src="assets/md.js"></script>
+  <script src="assets/library.js"></script>
+  <script>
+    (async () => {
+      Library.header();
+      let b = (await Library.books()).find(x => x.id === param("id"));
+      let main = $("#main");
+      if (!b) { main.append(h("div", { class: "empty" }, "Book not found.")); return; }
+      document.title = `${b.title} – {{SITE_TITLE}}`;
+      let ext = extOf(b.file);
+      main.append(h("div", { class: "detail" }, Library.coverNode(b), h("div", { class: "info" },
+        h("h1", {}, b.title),
+        h("p", { class: "author" }, [b.author, b.year].filter(Boolean).join(", ")),
+        h("p", {}, b.tags.map(t => h("a", { class: "btn", style: { marginRight: "6px", fontSize: "13px", padding: "2px 10px" }, href: `./?q=${encodeURIComponent(t)}` }, t))),
+        h("p", {},
+          h("a", { class: "btn primary", href: Library.openHref(b) }, ext === "pdf" ? "📄 Open PDF" : READABLE.includes(ext) ? "📖 Read" : "Open"), " ",
+          h("a", { class: "btn", href: Offox.url(`books/${b.id}/${b.file}`) + "?download" }, `⬇ Download (${formatSize(b.size)})`), " ",
+          h("a", { class: "btn", href: `edit.html?id=${encodeURIComponent(b.id)}` }, "✎ Edit"), " ",
+          h("button", { class: "btn", onclick: async () => {
+            if (!confirm(`Remove “${b.title}” from the library and delete its files?`)) return;
+            await Offox.remove(`books/${b.id}`);
+            location.href = "./";
+          } }, "🗑")),
+        ["epub", "mobi", "azw3", "djvu"].includes(ext) ? h("p", { class: "author" }, `Offox can't display ${ext.toUpperCase()} files itself. Download it and open it with an e-book reader, or convert it to PDF.`) : null,
+        h("div", { html: Markdown.render(b.description || "").html }))));
+    })();
+  </script>
+</body>
+</html>

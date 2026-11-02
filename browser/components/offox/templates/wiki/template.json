@@ -1,0 +1,13 @@
+{
+  "id": "wiki",
+  "name": "Encyclopedia (Wikipedia-style)",
+  "icon": "📚",
+  "description": "A wiki with articles in Markdown, [[links]] between pages, edit history, image uploads, recent changes and search.",
+  "defaultTitle": "Offpedia",
+  "defaultDomain": "wikipedia.org",
+  "shared": ["util.js", "md.js", "ui.css"],
+  "directories": ["articles", "media", "history"],
+  "searchRules": [
+    { "type": "files", "dir": "articles", "ext": ".md", "url": "/wiki.html?page={stem}", "kind": "article" }
+  ]
+}

@@ -1,0 +1,447 @@
+{
+  "generated": "tools/build-template-index.mjs",
+  "templates": [
+    {
+      "id": "blank",
+      "name": "Blank website",
+      "icon": "📄",
+      "description": "An empty starter site with index.html, style.css and script.js. Build anything with plain HTML, CSS and JavaScript.",
+      "defaultTitle": "My Website",
+      "defaultDomain": "my-site.home",
+      "shared": [],
+      "directories": [],
+      "searchRules": [],
+      "files": [
+        "index.html",
+        "script.js",
+        "style.css"
+      ]
+    },
+    {
+      "id": "video",
+      "name": "Video sharing",
+      "icon": "▶️",
+      "description": "A YouTube-style site: upload videos with descriptions, a home page with every video, playlists, and a player that converts formats Firefox can't play.",
+      "defaultTitle": "OffTube",
+      "defaultDomain": "youtube.com",
+      "shared": [
+        "util.js",
+        "ui.css"
+      ],
+      "directories": [
+        "videos",
+        "playlists"
+      ],
+      "searchRules": [
+        {
+          "type": "folders",
+          "dir": "videos",
+          "url": "/watch.html?v={name}",
+          "title": "title.txt",
+          "text": [
+            "description.txt"
+          ],
+          "kind": "video"
+        },
+        {
+          "type": "files",
+          "dir": "playlists",
+          "ext": ".json",
+          "url": "/playlist.html?id={stem}",
+          "kind": "playlist"
+        }
+      ],
+      "files": [
+        "assets/app.js",
+        "assets/logo.svg",
+        "assets/style.css",
+        "index.html",
+        "playlist.html",
+        "playlists.html",
+        "upload.html",
+        "watch.html"
+      ]
+    },
+    {
+      "id": "wiki",
+      "name": "Encyclopedia (Wikipedia-style)",
+      "icon": "📚",
+      "description": "A wiki with articles in Markdown, [[links]] between pages, edit history, image uploads, recent changes and search.",
+      "defaultTitle": "Offpedia",
+      "defaultDomain": "wikipedia.org",
+      "shared": [
+        "util.js",
+        "md.js",
+        "ui.css"
+      ],
+      "directories": [
+        "articles",
+        "media",
+        "history"
+      ],
+      "searchRules": [
+        {
+          "type": "files",
+          "dir": "articles",
+          "ext": ".md",
+          "url": "/wiki.html?page={stem}",
+          "kind": "article"
+        }
+      ],
+      "files": [
+        "articles/Editing_help.md",
+        "articles/Main_Page.md",
+        "articles/Offox.md",
+        "assets/logo.svg",
+        "assets/wiki.css",
+        "assets/wiki.js",
+        "index.html",
+        "special.html",
+        "wiki.html"
+      ]
+    },
+    {
+      "id": "software",
+      "name": "Software storage",
+      "icon": "💾",
+      "description": "An app store for installers, portable programs and drivers: versions, platforms, categories, screenshots and download buttons.",
+      "defaultTitle": "Software Store",
+      "defaultDomain": "software.store",
+      "shared": [
+        "util.js",
+        "md.js",
+        "ui.css"
+      ],
+      "directories": [
+        "apps"
+      ],
+      "searchRules": [
+        {
+          "type": "folders",
+          "dir": "apps",
+          "json": "app.json",
+          "titleKey": "name",
+          "textKeys": [
+            "description",
+            "publisher",
+            "category",
+            "version",
+            "platforms",
+            "license"
+          ],
+          "url": "/app.html?id={name}",
+          "kind": "app"
+        }
+      ],
+      "files": [
+        "app.html",
+        "assets/store.css",
+        "assets/store.js",
+        "edit.html",
+        "index.html"
+      ]
+    },
+    {
+      "id": "docs",
+      "name": "Documents (word processor)",
+      "icon": "📝",
+      "description": "Write and format documents like in Google Docs or Word: styles, fonts, lists, tables, pictures, autosave, print and PDF export.",
+      "defaultTitle": "Docs",
+      "defaultDomain": "docs.offox",
+      "shared": [
+        "util.js",
+        "ui.css"
+      ],
+      "directories": [
+        "documents"
+      ],
+      "searchRules": [
+        {
+          "type": "folders",
+          "dir": "documents",
+          "json": "meta.json",
+          "titleKey": "title",
+          "text": [
+            "document.html"
+          ],
+          "url": "/doc.html?id={name}",
+          "kind": "document"
+        }
+      ],
+      "files": [
+        "assets/docs.css",
+        "assets/docs.js",
+        "doc.html",
+        "index.html"
+      ]
+    },
+    {
+      "id": "sheets",
+      "name": "Spreadsheets",
+      "icon": "📊",
+      "description": "Spreadsheets like Google Sheets or Excel: formulas (SUM, AVERAGE, IF, VLOOKUP and more), formatting, several sheets per file, charts, CSV import and export.",
+      "defaultTitle": "Sheets",
+      "defaultDomain": "sheets.offox",
+      "shared": [
+        "util.js",
+        "ui.css"
+      ],
+      "directories": [
+        "spreadsheets"
+      ],
+      "searchRules": [
+        {
+          "type": "folders",
+          "dir": "spreadsheets",
+          "json": "meta.json",
+          "titleKey": "title",
+          "textKeys": [
+            "text"
+          ],
+          "url": "/sheet.html?id={name}",
+          "kind": "spreadsheet"
+        }
+      ],
+      "files": [
+        "assets/formula.js",
+        "assets/sheet-app.js",
+        "assets/sheets.css",
+        "index.html",
+        "sheet.html"
+      ]
+    },
+    {
+      "id": "slides",
+      "name": "Presentations",
+      "icon": "📽️",
+      "description": "Make slide decks like Google Slides or PowerPoint: themes, layouts, text boxes, pictures, shapes, speaker notes, full-screen presenting and PDF export.",
+      "defaultTitle": "Slides",
+      "defaultDomain": "slides.offox",
+      "shared": [
+        "util.js",
+        "ui.css"
+      ],
+      "directories": [
+        "presentations"
+      ],
+      "searchRules": [
+        {
+          "type": "folders",
+          "dir": "presentations",
+          "json": "meta.json",
+          "titleKey": "title",
+          "textKeys": [
+            "text"
+          ],
+          "url": "/deck.html?id={name}",
+          "kind": "presentation"
+        }
+      ],
+      "files": [
+        "assets/slides.css",
+        "assets/slides.js",
+        "deck.html",
+        "index.html"
+      ]
+    },
+    {
+      "id": "blog",
+      "name": "Blog / journal",
+      "icon": "✍️",
+      "description": "Write posts in Markdown with tags, pictures and a clean reading view. Good for a diary, notes or a family news page.",
+      "defaultTitle": "My Journal",
+      "defaultDomain": "journal.blog",
+      "shared": [
+        "util.js",
+        "md.js",
+        "ui.css"
+      ],
+      "directories": [
+        "posts",
+        "media"
+      ],
+      "searchRules": [
+        {
+          "type": "files",
+          "dir": "posts",
+          "ext": ".md",
+          "url": "/post.html?slug={stem}",
+          "kind": "post"
+        }
+      ],
+      "files": [
+        "assets/blog.css",
+        "assets/blog.js",
+        "index.html",
+        "post.html",
+        "write.html"
+      ]
+    },
+    {
+      "id": "board",
+      "name": "Notes board (Reddit-style)",
+      "icon": "📌",
+      "description": "A Reddit-style board for notes: posts in communities with Markdown text, pictures, GIFs and videos, votes, comments with replies, sorting and search.",
+      "defaultTitle": "Offddit",
+      "defaultDomain": "reddit.com",
+      "shared": [
+        "util.js",
+        "md.js",
+        "ui.css"
+      ],
+      "directories": [
+        "posts"
+      ],
+      "searchRules": [
+        {
+          "type": "folders",
+          "dir": "posts",
+          "json": "post.json",
+          "titleKey": "title",
+          "textKeys": [
+            "body",
+            "community",
+            "flair"
+          ],
+          "url": "/post.html?id={name}",
+          "kind": "post"
+        }
+      ],
+      "files": [
+        "assets/board.css",
+        "assets/board.js",
+        "index.html",
+        "post.html",
+        "submit.html"
+      ]
+    },
+    {
+      "id": "photos",
+      "name": "Photo gallery",
+      "icon": "🖼️",
+      "description": "Albums of photos with a full-screen viewer, slideshows, captions and drag-and-drop upload.",
+      "defaultTitle": "Photos",
+      "defaultDomain": "photos.gallery",
+      "shared": [
+        "util.js",
+        "ui.css"
+      ],
+      "directories": [
+        "albums"
+      ],
+      "searchRules": [
+        {
+          "type": "folders",
+          "dir": "albums",
+          "json": "album.json",
+          "titleKey": "name",
+          "textKeys": [
+            "description"
+          ],
+          "url": "/album.html?id={name}",
+          "kind": "album"
+        }
+      ],
+      "files": [
+        "album.html",
+        "assets/photos.css",
+        "assets/photos.js",
+        "index.html"
+      ]
+    },
+    {
+      "id": "music",
+      "name": "Music library",
+      "icon": "🎵",
+      "description": "A music player for your songs: library by artist and album, playlists, queue, shuffle and repeat. Plays MP3, AAC, FLAC, Ogg, Opus and WAV; converts others.",
+      "defaultTitle": "Music",
+      "defaultDomain": "music.player",
+      "shared": [
+        "util.js",
+        "ui.css"
+      ],
+      "directories": [
+        "tracks",
+        "playlists"
+      ],
+      "searchRules": [
+        {
+          "type": "folders",
+          "dir": "tracks",
+          "json": "track.json",
+          "titleKey": "title",
+          "textKeys": [
+            "artist",
+            "album",
+            "genre"
+          ],
+          "url": "/?track={name}",
+          "kind": "track"
+        }
+      ],
+      "files": [
+        "assets/music.css",
+        "index.html"
+      ]
+    },
+    {
+      "id": "library",
+      "name": "Document library",
+      "icon": "📖",
+      "description": "A bookshelf for e-books, PDFs, manuals and papers, with authors, tags, a built-in reader for text and PDF, and reading progress.",
+      "defaultTitle": "Library",
+      "defaultDomain": "library.books",
+      "shared": [
+        "util.js",
+        "md.js",
+        "ui.css"
+      ],
+      "directories": [
+        "books"
+      ],
+      "searchRules": [
+        {
+          "type": "folders",
+          "dir": "books",
+          "json": "book.json",
+          "titleKey": "title",
+          "textKeys": [
+            "author",
+            "description",
+            "tags",
+            "year"
+          ],
+          "url": "/book.html?id={name}",
+          "kind": "book"
+        }
+      ],
+      "files": [
+        "assets/library.css",
+        "assets/library.js",
+        "book.html",
+        "edit.html",
+        "index.html",
+        "read.html"
+      ]
+    },
+    {
+      "id": "drive",
+      "name": "File drive",
+      "icon": "🗂️",
+      "description": "A file manager for any kind of file: folders, drag-and-drop upload, previews for pictures, video, audio, PDF and text, rename, move and delete.",
+      "defaultTitle": "Drive",
+      "defaultDomain": "drive.files",
+      "shared": [
+        "util.js",
+        "ui.css"
+      ],
+      "directories": [
+        "files"
+      ],
+      "searchRules": [],
+      "files": [
+        "index.html"
+      ]
+    }
+  ]
+}

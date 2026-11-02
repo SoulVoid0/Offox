@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{SITE_TITLE}}</title>
+  <meta name="fireline" content="noindex">
+  <link rel="stylesheet" href="assets/ui.css">
+  <link rel="stylesheet" href="assets/blog.css">
+</head>
+<body>
+  <main id="main"></main>
+  <script src="/__offox/offox.js"></script>
+  <script src="assets/util.js"></script>
+  <script src="assets/md.js"></script>
+  <script src="assets/blog.js"></script>
+  <script>
+    (async () => {
+      Blog.header();
+      let slug = param("slug");
+      let post = (await Blog.posts()).find(p => p.slug === slug);
+      let main = $("#main");
+      if (!post) { main.append(h("h1", {}, "Post not found"), h("a", { href: "./" }, "All posts")); return; }
+      document.title = `${post.title} – {{SITE_TITLE}}`;
+      main.append(h("article", {},
+        h("div", { class: "meta" }, formatDate(post.date), " · ", `${Math.max(1, Math.round(post.body.split(/\s+/).length / 220))} min read`),
+        h("h1", {}, post.title),
+        h("div", { html: Markdown.render(post.body).html }),
+        h("p", {}, post.tags.map(t => h("a", { class: "tag", href: `./?tag=${encodeURIComponent(t)}` }, t))),
+        h("p", {}, h("a", { class: "btn", href: `write.html?slug=${encodeURIComponent(post.slug)}` }, "✎ Edit"), " ",
+          h("button", { class: "btn", onclick: async () => {
+            if (!confirm("Delete this post?")) return;
+            await Offox.remove(`posts/${post.slug}.md`);
+            location.href = "./";
+          } }, "🗑 Delete"))));
+    })();
+  </script>
+</body>
+</html>

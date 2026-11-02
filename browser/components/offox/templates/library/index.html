@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{SITE_TITLE}}</title>
+  <meta name="description" content="{{SITE_DESCRIPTION}}">
+  <link rel="stylesheet" href="assets/ui.css">
+  <link rel="stylesheet" href="assets/library.css">
+</head>
+<body>
+  <main id="main"><div class="tags" id="tags"></div><div class="shelf" id="shelf"></div></main>
+  <script src="/__offox/offox.js"></script>
+  <script src="assets/util.js"></script>
+  <script src="assets/library.js"></script>
+  <script>
+    (async () => {
+      Library.header();
+      let books = await Library.books();
+      let q = (param("q") || "").toLowerCase();
+      let tag = null;
+      let render = () => {
+        let list = books.filter(b => (!tag || b.tags.includes(tag)) && (!q || [b.title, b.author, b.tags.join(" "), b.description].join(" ").toLowerCase().includes(q)));
+        $("#shelf").replaceChildren(...list.map(b => h("a", { class: "book", href: `book.html?id=${encodeURIComponent(b.id)}` },
+          Library.coverNode(b), h("div", { class: "title" }, b.title), h("div", { class: "author" }, b.author),
+          Library.progress(b.id) ? h("div", { class: "progress" }, h("div", { style: { width: Math.round(Library.progress(b.id) * 100) + "%" } })) : null)));
+        if (!list.length) $("#shelf").append(h("div", { class: "empty", style: { gridColumn: "1/-1" } }, books.length ? "Nothing matches." : "Your shelf is empty. Add PDFs, e-books, text files or manuals."));
+        $$("#tags button").forEach(b => b.classList.toggle("active", b.textContent === (tag || "All")));
+      };
+      let tags = [...new Set(books.flatMap(b => b.tags))].sort();
+      if (tags.length) for (let t of ["All", ...tags]) $("#tags").append(h("button", { onclick: () => { tag = t === "All" ? null : t; render(); } }, t));
+      render();
+    })();
+  </script>
+</body>
+</html>

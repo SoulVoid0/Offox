@@ -1,0 +1,11 @@
+{
+  "id": "drive",
+  "name": "File drive",
+  "icon": "🗂️",
+  "description": "A file manager for any kind of file: folders, drag-and-drop upload, previews for pictures, video, audio, PDF and text, rename, move and delete.",
+  "defaultTitle": "Drive",
+  "defaultDomain": "drive.files",
+  "shared": ["util.js", "ui.css"],
+  "directories": ["files"],
+  "searchRules": []
+}

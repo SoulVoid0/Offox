@@ -1,0 +1,24 @@
+# Offox build configuration for Windows (MozillaBuild).
+# Used with MOZCONFIG=offox/fork/mozconfig.windows ./mach build
+ac_add_options --enable-application=browser
+ac_add_options --target=x86_64-pc-windows-msvc
+ac_add_options --enable-optimize
+ac_add_options --with-branding=browser/branding/offox
+ac_add_options --with-app-name=offox
+ac_add_options --with-app-basename=Offox
+ac_add_options --disable-updater
+ac_add_options --disable-maintenance-service
+ac_add_options --disable-crashreporter
+ac_add_options --disable-default-browser-agent
+ac_add_options --disable-tests
+ac_add_options --disable-debug
+ac_add_options --enable-bootstrap
+ac_add_options --disable-debug-symbols
+# The objects folder can be moved (CI puts it on the bigger disk).
+mk_add_options MOZ_OBJDIR=${OFFOX_OBJDIR:-@TOPSRCDIR@/obj-offox}
+# CI caches compiled objects so a build cut off by the time limit can resume.
+if [ -n "${OFFOX_SCCACHE:-}" ]; then
+  ac_add_options --with-ccache="$OFFOX_SCCACHE"
+fi
+export MOZ_REQUIRE_SIGNING=
+export MOZ_TELEMETRY_REPORTING=

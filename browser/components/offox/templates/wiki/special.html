@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{SITE_TITLE}}</title>
+  <meta name="fireline" content="noindex">
+  <link rel="icon" href="assets/logo.svg">
+  <link rel="stylesheet" href="assets/ui.css">
+  <link rel="stylesheet" href="assets/wiki.css">
+</head>
+<body>
+  <main id="main"></main>
+  <script src="/__offox/offox.js"></script>
+  <script src="assets/util.js"></script>
+  <script src="assets/md.js"></script>
+  <script src="assets/wiki.js"></script>
+  <script>
+    (async () => {
+      let p = param("p") || "all";
+      let main = $("#main");
+      Wiki.layout({});
+      let articles = await Wiki.articles();
+      let heading = text => { main.append(h("h1", { class: "title" }, text)); document.title = `${text} – {{SITE_TITLE}}`; };
+
+      if (p === "random") {
+        if (articles.length) location.replace(Wiki.href(articles[Math.floor(Math.random() * articles.length)].slug));
+        else heading("There are no articles yet");
+        return;
+      }
+      if (p === "all") {
+        heading("All pages");
+        articles.sort((a, b) => a.slug.localeCompare(b.slug));
+        main.append(h("p", {}, `${articles.length} pages.`),
+          h("div", { class: "list" }, articles.map(a => h("a", { href: Wiki.href(a.slug) }, Wiki.title(a.slug)))));
+        return;
+      }
+      if (p === "recent") {
+        heading("Recent changes");
+        let recent = await Offox.readJSON("history/recent.json", []);
+        main.append(h("table", { class: "rows" }, recent.map(r => h("tr", {},
+          h("td", {}, new Date(r.time).toLocaleString()),
+          h("td", {}, r.created ? h("b", { title: "New page" }, "N ") : "", h("a", { href: Wiki.href(r.page) }, Wiki.title(r.page))),
+          h("td", {}, r.summary ? h("i", {}, r.summary) : "")))));
+        if (!recent.length) main.append(h("p", {}, "No changes yet."));
+        return;
+      }
+      if (p === "create") {
+        heading("Create a page");
+        let input = h("input", { type: "text", placeholder: "Title of the new page", style: { font: "inherit", padding: "8px", width: "min(500px, 100%)" } });
+        main.append(h("form", { onsubmit: e => { e.preventDefault(); if (input.value.trim()) location.href = Wiki.href(input.value, "edit"); } },
+          input, " ", h("button", { class: "btn primary" }, "Create")));
+        input.focus();
+        return;
+      }
+      if (p === "upload") {
+        heading("Upload file");
+        let input = h("input", { type: "file", multiple: true });
+        let out = h("div", {});
+        main.append(h("p", {}, "Uploaded files are stored in the media folder. Use the code shown after uploading to place them in an article."),
+          input, out);
+        input.addEventListener("change", async () => {
+          for (let file of input.files) {
+            let name = slugify(file.name);
+            let bar = h("progress", { max: 1, value: 0 });
+            let row = h("p", {}, `${file.name} `, bar);
+            out.append(row);
+            await Offox.upload(`media/${name}`, file, { onProgress: v => (bar.value = v) });
+            let code = IMAGE_EXT.includes(extOf(name)) ? `![${name}](/media/${encodeURIComponent(name)})` : `[${name}](/media/${encodeURIComponent(name)})`;
+            row.replaceChildren(h("a", { href: Offox.url(`media/${name}`) }, name), " — ", h("code", {}, code));
+          }
+        });
+        let media = await Offox.list("media");
+        if (media.length) {
+          main.append(h("h2", {}, "Files"), h("div", { class: "list" }, media.map(m => h("a", { href: Offox.url(`media/${m.name}`) }, m.name))));
+        }
+        return;
+      }
+      if (p === "search") {
+        let q = (param("q") || "").trim();
+        heading("Search results");
+        if (!q) return;
+        let exact = articles.find(a => a.slug.toLowerCase() === Wiki.slug(q).toLowerCase());
+        if (exact && !param("fulltext")) {
+          location.replace(Wiki.href(exact.slug));
+          return;
+        }
+        let words = q.toLowerCase().split(/\s+/).filter(Boolean);
+        let results = [];
+        for (let a of articles) {
+          let text = await Wiki.read(a.slug);
+          let hay = (Wiki.title(a.slug) + "\n" + text).toLowerCase();
+          if (words.every(w => hay.includes(w))) {
+            let at = hay.indexOf(words[0]);
+            let score = words.reduce((s, w) => s + (Wiki.title(a.slug).toLowerCase().includes(w) ? 10 : 0) + hay.split(w).length, 0);
+            results.push({ a, score, snippet: text.replace(/[#*_\[\]`>|]/g, "").slice(Math.max(0, at - 80), at + 160) });
+          }
+        }
+        results.sort((x, y) => y.score - x.score);
+        main.append(h("p", {}, exact ? null : h("span", {}, "Create the page “", h("a", { href: Wiki.href(q, "edit"), class: "new" }, q), "” on this wiki. ")),
+          h("p", {}, `${results.length} result${results.length === 1 ? "" : "s"}`));
+        for (let r of results) {
+          main.append(h("div", { style: { marginBottom: "14px" } },
+            h("a", { href: Wiki.href(r.a.slug), style: { fontSize: "17px" } }, Wiki.title(r.a.slug)),
+            h("div", { style: { fontSize: "14px" } }, "…" + r.snippet + "…")));
+        }
+      }
+    })();
+  </script>
+</body>
+</html>

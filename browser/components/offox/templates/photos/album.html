@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{SITE_TITLE}}</title>
+  <meta name="fireline" content="noindex">
+  <link rel="stylesheet" href="assets/ui.css">
+  <link rel="stylesheet" href="assets/photos.css">
+</head>
+<body>
+  <main id="main"></main>
+  <script src="/__offox/offox.js"></script>
+  <script src="assets/util.js"></script>
+  <script src="assets/photos.js"></script>
+  <script>
+    (async () => {
+      let id = param("id");
+      let album = (await Photos.albums()).find(a => a.id === id);
+      let input = h("input", { type: "file", accept: "image/*", multiple: true, hidden: true });
+      Photos.header([
+        h("label", { class: "btn primary" }, "⬆ Add photos", input),
+        h("button", { class: "btn", onclick: async () => {
+          let data = await dialogForm("Edit album", [{ name: "name", label: "Name", value: album.name }, { name: "description", label: "Description", type: "textarea", value: album.description, rows: 3 }]);
+          if (!data) return;
+          Object.assign(album.meta, { name: data.name, description: data.description });
+          await Offox.writeJSON(`albums/${id}/album.json`, album.meta);
+          location.reload();
+        } }, "✎ Edit"),
+        h("button", { class: "btn", onclick: async () => {
+          if (!confirm(`Delete the album “${album.name}” and all its photos?`)) return;
+          await Offox.remove(`albums/${id}`);
+          location.href = "./";
+        } }, "🗑")]);
+      let main = $("#main");
+      if (!album) { main.append(h("div", { class: "empty" }, h("h2", {}, "Album not found"))); return; }
+      document.title = `${album.name} – {{SITE_TITLE}}`;
+      main.append(h("h1", {}, album.name), album.description ? h("p", {}, album.description) : null);
+      let list = album.images.map(i => ({ name: i.name, url: Offox.url(`albums/${id}/${i.name}`) }));
+      let grid = h("div", { class: "photos" }, list.map((p, i) => h("div", { class: "photo", onclick: () => Photos.view(list, i, x => album.captions[x.name]) },
+        h("img", { src: p.url, loading: "lazy", alt: album.captions[p.name] || "" }))));
+      main.append(grid);
+      if (!list.length) main.append(h("div", { class: "empty" }, "Drag photos here or use “Add photos”."));
+      let upload = async files => {
+        let status = h("p", {});
+        main.prepend(status);
+        let n = 0;
+        for (let f of files) {
+          if (!f.type.startsWith("image/") && !IMAGE_EXT.includes(extOf(f.name))) continue;
+          status.textContent = `Copying ${++n} of ${files.length}: ${f.name}`;
+          await Offox.upload(`albums/${id}/${slugify(f.name)}`, f);
+        }
+        location.reload();
+      };
+      input.addEventListener("change", () => upload([...input.files]));
+      document.addEventListener("dragover", e => { e.preventDefault(); main.classList.add("dropping"); });
+      document.addEventListener("dragleave", () => main.classList.remove("dropping"));
+      document.addEventListener("drop", e => { e.preventDefault(); main.classList.remove("dropping"); upload([...e.dataTransfer.files]); });
+    })();
+  </script>
+</body>
+</html>

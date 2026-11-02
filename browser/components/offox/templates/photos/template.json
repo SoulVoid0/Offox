@@ -1,0 +1,13 @@
+{
+  "id": "photos",
+  "name": "Photo gallery",
+  "icon": "🖼️",
+  "description": "Albums of photos with a full-screen viewer, slideshows, captions and drag-and-drop upload.",
+  "defaultTitle": "Photos",
+  "defaultDomain": "photos.gallery",
+  "shared": ["util.js", "ui.css"],
+  "directories": ["albums"],
+  "searchRules": [
+    { "type": "folders", "dir": "albums", "json": "album.json", "titleKey": "name", "textKeys": ["description"], "url": "/album.html?id={name}", "kind": "album" }
+  ]
+}

@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{SITE_TITLE}}</title>
+  <meta name="fireline" content="noindex">
+  <link rel="icon" href="assets/logo.svg">
+  <link rel="stylesheet" href="assets/ui.css">
+  <link rel="stylesheet" href="assets/wiki.css">
+</head>
+<body>
+  <main id="main"></main>
+  <script src="/__offox/offox.js"></script>
+  <script src="assets/util.js"></script>
+  <script src="assets/md.js"></script>
+  <script src="assets/wiki.js"></script>
+  <script>
+    (async () => {
+      let slug = Wiki.slug(param("page") || "Main_Page");
+      let action = param("action") || "read";
+      Wiki.layout({ slug, tab: action });
+      let main = $("#main");
+      let title = Wiki.title(slug);
+      document.title = `${action === "edit" ? "Editing " : action === "history" ? "History of " : ""}${title} – {{SITE_TITLE}}`;
+      let text = await Wiki.read(slug);
+
+      if (action === "read") {
+        let rev = param("rev");
+        if (rev) text = await Offox.readText(`history/${slug}/${rev}.md`, "");
+        main.append(h("h1", { class: "title" }, title));
+        main.append(h("div", { class: "from" }, rev ? `Old revision from ${rev.replace(/T(\d\d)-(\d\d)-(\d\d).*/, " $1:$2")} · ` : `From {{SITE_TITLE}}, your offline encyclopedia`,
+          rev ? h("a", { href: Wiki.href(slug) }, "view current version") : null));
+        if (!text) {
+          main.append(h("div", { class: "notice" },
+            h("p", {}, h("b", {}, `${SITE_TITLE} does not have an article with this exact name.`)),
+            h("p", {}, "You can ", h("a", { href: Wiki.href(slug, "edit") }, `start the “${title}” article`), " or ",
+              h("a", { href: `special.html?p=search&q=${encodeURIComponent(title)}` }, "search for it"), ".")));
+          return;
+        }
+        let { html, headings } = await Wiki.render(text);
+        let content = h("div", { class: "content", html });
+        let sections = headings.filter(x => x.level >= 2 && x.level <= 4);
+        if (sections.length >= 3) {
+          let toc = h("div", { class: "toc" }, h("b", {}, "Contents"),
+            h("ol", {}, sections.map(x => h("li", { class: "l" + x.level }, h("a", { href: "#" + x.id }, x.text.replace(/[*_`]/g, ""))))));
+          let firstHeading = content.querySelector("h2, h3");
+          firstHeading ? firstHeading.before(toc) : content.prepend(toc);
+        }
+        main.append(content);
+        let log = await Offox.readJSON(`history/${slug}/log.json`, []);
+        main.append(h("div", { class: "footer" }, log[0] ? `This page was last edited on ${new Date(log[0].time).toLocaleString()}.` : ""));
+        if (location.hash) document.getElementById(decodeURIComponent(location.hash.slice(1)))?.scrollIntoView();
+        return;
+      }
+
+      if (action === "edit") {
+        main.append(h("h1", { class: "title" }, `${text ? "Editing" : "Creating"} ${title}`));
+        let area = h("textarea", { spellcheck: "true" }, text || `# ${title}\n\n'''${title}''' is …\n`.replace(/'''/g, "**"));
+        let summary = h("input", { type: "text", placeholder: "Summary (briefly describe your changes)" });
+        let preview = h("div", { class: "preview content", hidden: true });
+        let insert = (before, after = "", placeholder = "") => {
+          let { selectionStart: s, selectionEnd: e, value } = area;
+          let sel = value.slice(s, e) || placeholder;
+          area.setRangeText(before + sel + after, s, e, "end");
+          area.focus();
+        };
+        let upload = h("input", { type: "file", accept: "image/*", hidden: true, onchange: async () => {
+          let file = upload.files[0];
+          if (!file) return;
+          let name = slugify(file.name);
+          await Offox.upload(`media/${name}`, file);
+          insert(`![${file.name.replace(/\.[^.]+$/, "")}](/media/${encodeURIComponent(name)})`);
+          upload.value = "";
+        } });
+        main.append(h("div", { class: "editor" },
+          h("div", { class: "bar" },
+            h("button", { onclick: () => insert("**", "**", "bold text") }, "B"),
+            h("button", { onclick: () => insert("*", "*", "italic text") }, "I"),
+            h("button", { onclick: () => insert("\n## ", "\n", "Heading") }, "Heading"),
+            h("button", { onclick: () => insert("[[", "]]", "Page name") }, "Wiki link"),
+            h("button", { onclick: () => insert("[", "](https://example.com)", "link text") }, "Link"),
+            h("button", { onclick: () => insert("\n- ", "", "item") }, "• List"),
+            h("button", { onclick: () => insert("\n| Column | Column |\n|---|---|\n| ", " | |\n", "cell") }, "Table"),
+            h("button", { onclick: () => upload.click() }, "🖼 Image"), upload),
+          area, summary,
+          h("div", { class: "buttons" },
+            h("button", { class: "btn primary", onclick: async e => {
+              e.target.disabled = true;
+              await Wiki.save(slug, area.value, summary.value);
+              location.href = Wiki.href(slug);
+            } }, "Save changes"),
+            h("button", { class: "btn", onclick: async () => {
+              preview.hidden = false;
+              preview.innerHTML = (await Wiki.render(area.value)).html;
+            } }, "Show preview"),
+            h("a", { href: Wiki.href(slug) }, "Cancel"),
+            text ? h("button", { class: "btn danger", style: { marginLeft: "auto" }, onclick: async () => {
+              if (!confirm(`Delete the article “${title}”? Its history is kept in the history folder.`)) return;
+              await Offox.writeText(`history/${slug}/${new Date().toISOString().replace(/[:.]/g, "-")}.md`, text);
+              await Offox.remove(`articles/${slug}.md`);
+              location.href = "./";
+            } }, "Delete page") : null),
+          preview));
+        area.focus();
+        return;
+      }
+
+      if (action === "history") {
+        main.append(h("h1", { class: "title" }, `${title}: Revision history`));
+        let log = await Offox.readJSON(`history/${slug}/log.json`, []);
+        if (!log.length) {
+          main.append(h("p", {}, "No edits have been recorded for this page."));
+          return;
+        }
+        main.append(h("table", { class: "rows" }, log.map((entry, i) => h("tr", {},
+          h("td", {}, i === 0 ? h("a", { href: Wiki.href(slug) }, new Date(entry.time).toLocaleString())
+            : log[i - 1].previous ? h("a", { href: `${Wiki.href(slug)}&rev=${log[i - 1].previous}` }, new Date(entry.time).toLocaleString())
+            : new Date(entry.time).toLocaleString()),
+          h("td", {}, `${entry.size} characters`),
+          h("td", {}, entry.summary ? h("i", {}, `(${entry.summary})`) : "")))));
+      }
+    })();
+  </script>
+</body>
+</html>

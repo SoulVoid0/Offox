@@ -1,0 +1,25 @@
+# Offox build configuration for Windows, cross-compiled on Linux (this is how
+# Mozilla builds Windows Firefox too). "--enable-bootstrap" downloads clang,
+# the Windows SDK and MSVC libraries ("vs") and wine. Used by
+# offox/installer/build-windows-on-linux.sh and the release workflow:
+#   MOZCONFIG=offox/fork/mozconfig.windows-cross ./mach build
+ac_add_options --enable-application=browser
+ac_add_options --target=x86_64-pc-windows-msvc
+ac_add_options --enable-optimize
+ac_add_options --with-branding=browser/branding/offox
+ac_add_options --with-app-name=offox
+ac_add_options --with-app-basename=Offox
+ac_add_options --disable-updater
+ac_add_options --disable-maintenance-service
+ac_add_options --disable-crashreporter
+ac_add_options --disable-default-browser-agent
+ac_add_options --disable-tests
+ac_add_options --disable-debug
+ac_add_options --enable-bootstrap
+ac_add_options --disable-debug-symbols
+mk_add_options MOZ_OBJDIR=${OFFOX_OBJDIR:-@TOPSRCDIR@/obj-offox-win64}
+if [ -n "${OFFOX_SCCACHE:-}" ]; then
+  ac_add_options --with-ccache="$OFFOX_SCCACHE"
+fi
+export MOZ_REQUIRE_SIGNING=
+export MOZ_TELEMETRY_REPORTING=

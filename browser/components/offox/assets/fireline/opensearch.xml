@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<OpenSearchDescription xmlns="http://a9.com/-/spec/opensearch/1.1/" xmlns:moz="http://www.mozilla.org/2006/browser/search/">
+  <ShortName>FireLine</ShortName>
+  <Description>Search your offline Offox websites</Description>
+  <InputEncoding>UTF-8</InputEncoding>
+  <Image width="64" height="64" type="image/svg+xml">https://fireline.offox/logo.svg</Image>
+  <Url type="text/html" method="get" template="https://fireline.offox/search?q={searchTerms}"/>
+  <Url type="application/x-suggestions+json" method="get" template="https://fireline.offox/api/suggest?q={searchTerms}"/>
+  <moz:SearchForm>https://fireline.offox/</moz:SearchForm>
+</OpenSearchDescription>

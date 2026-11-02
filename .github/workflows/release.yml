@@ -1,0 +1,209 @@
+# Builds Offox for Linux (AppImage) and Windows (installer .exe), starts the
+# built browser on Linux, several other distributions and Windows to check it
+# works, and puts the files on the GitHub Releases page.
+#
+# Start it by pushing to the "release-build" branch, by pushing a tag v*, or
+# with "Run workflow" on the Actions tab.
+name: Build and release Offox
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [release-build]
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  linux-1:
+    uses: ./.github/workflows/build-part.yml
+    with: { platform: linux, part: 1 }
+  linux-2:
+    needs: linux-1
+    if: needs.linux-1.outputs.done != 'true'
+    uses: ./.github/workflows/build-part.yml
+    with: { platform: linux, part: 2 }
+  linux-3:
+    needs: [linux-1, linux-2]
+    if: always() && needs.linux-1.outputs.done != 'true' && needs.linux-2.outputs.done != 'true' && needs.linux-2.result == 'success'
+    uses: ./.github/workflows/build-part.yml
+    with: { platform: linux, part: 3 }
+
+  windows-1:
+    uses: ./.github/workflows/build-part.yml
+    with: { platform: windows, part: 1 }
+  windows-2:
+    needs: windows-1
+    if: needs.windows-1.outputs.done != 'true'
+    uses: ./.github/workflows/build-part.yml
+    with: { platform: windows, part: 2 }
+  windows-3:
+    needs: [windows-1, windows-2]
+    if: always() && needs.windows-1.outputs.done != 'true' && needs.windows-2.outputs.done != 'true' && needs.windows-2.result == 'success'
+    uses: ./.github/workflows/build-part.yml
+    with: { platform: windows, part: 3 }
+
+  test-linux:
+    name: Test the AppImage
+    needs: [linux-1, linux-2, linux-3]
+    if: always() && (needs.linux-1.outputs.done == 'true' || needs.linux-2.outputs.done == 'true' || needs.linux-3.outputs.done == 'true')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      # The newest test scripts of the branch, so "Re-run failed jobs" picks
+      # up fixes to them without building Offox again.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          sparse-checkout: offox
+      - uses: actions/download-artifact@v4
+        with: { name: offox-linux, path: dist }
+      - name: Install test tools
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q libgtk-3-0t64 libasound2t64 libx11-xcb1 libdbus-glib-1-2 xvfb
+          pip install --break-system-packages selenium
+          curl -fsSL https://github.com/mozilla/geckodriver/releases/download/v0.36.0/geckodriver-v0.36.0-linux64.tar.gz | sudo tar -xz -C /usr/local/bin
+      - name: Unpack the AppImage
+        run: |
+          chmod +x dist/*.AppImage
+          ls -la dist
+          cd dist && ./*.AppImage --appimage-extract >/dev/null && ls squashfs-root
+      - name: Start the AppImage itself
+        run: |
+          mkdir -p shots
+          APPIMAGE_EXTRACT_AND_RUN=1 timeout 180 dist/*.AppImage --headless --screenshot "$PWD/shots/appimage-fireline.png" https://fireline.offox/
+          test -s shots/appimage-fireline.png
+      - name: Browser checks
+        run: python3 offox/tests/smoke-browser.py dist/squashfs-root/usr/lib/offox/offox shots
+      - name: Run on other Linux distributions
+        run: |
+          failed=""
+          for image in fedora:latest debian:stable-slim archlinux:latest opensuse/tumbleweed:latest; do
+            case "$image" in
+              fedora*) deps="dnf install -y -q gtk3 alsa-lib dbus-glib" ;;
+              debian*) deps="apt-get update -q && apt-get install -y -q libgtk-3-0 libasound2 libx11-xcb1 libdbus-glib-1-2" ;;
+              arch*) deps="pacman -Sy --noconfirm gtk3 alsa-lib dbus-glib" ;;
+              opensuse*) deps="zypper -q -n install gtk3 alsa-lib dbus-1-glib libX11-xcb1" ;;
+            esac
+            name=$(echo "$image" | tr '/:' '--')
+            echo "::group::$image"
+            docker run --rm -e HOME=/tmp -e MOZ_HEADLESS=1 \
+              -v "$PWD/dist/squashfs-root:/app:ro" -v "$PWD/shots:/shots" "$image" sh -c \
+              "($deps) >/dev/null 2>&1; echo 'dependencies installed'; /app/AppRun --headless --screenshot /shots/$name.png https://fireline.offox/; echo \"offox exited with \$?\"" &
+            pid=$!
+            ( sleep 240; docker ps -q | xargs -r docker kill ) &
+            killer=$!
+            wait $pid || true
+            kill $killer 2>/dev/null || true
+            echo "::endgroup::"
+            if [ -s "shots/$name.png" ]; then echo "Offox runs on $image"; else echo "::error::Offox did not run on $image"; failed="$failed $image"; fi
+          done
+          [ -z "$failed" ]
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: screenshots-linux, path: shots, retention-days: 14 }
+
+  test-windows:
+    name: Test the Windows installer
+    needs: [windows-1, windows-2, windows-3]
+    if: always() && (needs.windows-1.outputs.done == 'true' || needs.windows-2.outputs.done == 'true' || needs.windows-3.outputs.done == 'true')
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          sparse-checkout: offox
+      - uses: actions/download-artifact@v4
+        with: { name: offox-windows, path: dist }
+      - name: Install test tools
+        shell: pwsh
+        run: |
+          pip install selenium
+          Invoke-WebRequest https://github.com/mozilla/geckodriver/releases/download/v0.36.0/geckodriver-v0.36.0-win64.zip -OutFile gd.zip
+          Expand-Archive gd.zip -DestinationPath C:\geckodriver
+          "C:\geckodriver" | Out-File -Append $env:GITHUB_PATH
+      - name: Normal install
+        shell: pwsh
+        run: |
+          $setup = (Get-ChildItem dist\*-Setup.exe)[0].FullName
+          Start-Process $setup -ArgumentList "/S" -Wait
+          $exe = "$env:LOCALAPPDATA\Programs\Offox\offox.exe"
+          if (-not (Test-Path $exe)) { throw "offox.exe was not installed" }
+          if (-not (Test-Path "$env:LOCALAPPDATA\Programs\Offox\Uninstall Offox.exe")) { throw "no uninstaller" }
+          if (-not (Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Offox.lnk")) { throw "no Start menu shortcut" }
+          "OFFOX_EXE=$exe" | Out-File -Append $env:GITHUB_ENV
+      - name: Browser checks
+        shell: pwsh
+        run: python offox\tests\smoke-browser.py $env:OFFOX_EXE shots
+      - name: Portable install
+        shell: pwsh
+        run: |
+          $setup = (Get-ChildItem dist\*-Setup.exe)[0].FullName
+          Start-Process $setup -ArgumentList "/S", "/PORTABLE", "/D=C:\Portable\Offox" -Wait
+          if (-not (Test-Path C:\Portable\Offox\offox-portable)) { throw "portable marker missing" }
+          New-Item -ItemType Directory -Force shots | Out-Null
+          $p = Start-Process C:\Portable\Offox\offox.exe -ArgumentList "--headless", "--screenshot", "$PWD\shots\portable-fireline.png", "https://fireline.offox/" -PassThru
+          if (-not $p.WaitForExit(180000)) { $p.Kill(); throw "Offox did not finish" }
+          if (-not (Test-Path shots\portable-fireline.png)) { throw "no screenshot" }
+          $profiles = Get-ChildItem -Recurse C:\Portable\Offox\Data -Filter prefs.js -ErrorAction SilentlyContinue
+          if (-not $profiles) { throw "the portable profile was not created in the Data folder" }
+          Write-Host "Portable profile: $($profiles[0].FullName)"
+      - name: Uninstall
+        shell: pwsh
+        run: |
+          Start-Process "$env:LOCALAPPDATA\Programs\Offox\Uninstall Offox.exe" -ArgumentList "/S" -Wait
+          Start-Sleep 5
+          if (Test-Path "$env:LOCALAPPDATA\Programs\Offox\offox.exe") { throw "uninstall left offox.exe" }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: screenshots-windows, path: shots, retention-days: 14 }
+
+  release:
+    name: Publish the release
+    needs: [test-linux, test-windows]
+    if: always() && needs.test-linux.result == 'success' && needs.test-windows.result == 'success'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: offox
+      - uses: actions/download-artifact@v4
+        with: { pattern: offox-*, path: dist, merge-multiple: true }
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(sed -E 's/^FIREFOX_([0-9]+)_([0-9]+)_([0-9]+).*/\1.\2.\3/' offox/fork/FIREFOX_VERSION)
+          tag="v$version"
+          ls -la dist
+          cat > notes.md <<NOTES
+          Offox $version: a Firefox $version ESR based browser that never goes on the internet.
+
+          **Windows (64-bit, Windows 10/11):** download \`Offox-$version-Setup.exe\` and run it. It asks whether you want a **normal install** (Start menu, uninstaller, settings in your user profile) or a **portable install** (everything in one folder, e.g. on a USB drive). Windows SmartScreen may warn because the installer is not signed: click *More info*, then *Run anyway*.
+
+          **Linux (any 64-bit distribution):** download \`Offox-$version-x86_64.AppImage\`, make it executable and run it:
+          \`\`\`
+          chmod +x Offox-$version-x86_64.AppImage
+          ./Offox-$version-x86_64.AppImage              # run Offox
+          ./Offox-$version-x86_64.AppImage --install    # add it to your applications menu
+          ./Offox-$version-x86_64.AppImage --portable   # keep settings next to the AppImage (USB drive)
+          \`\`\`
+          If it says FUSE is missing, run it with \`--appimage-extract-and-run\` or install FUSE (Fedora: \`sudo dnf install fuse\`, Ubuntu: \`sudo apt install libfuse2\`).
+
+          Built from ${GITHUB_SHA} by the release workflow, and tested on Ubuntu, Fedora, Debian, Arch, openSUSE and Windows.
+          NOTES
+          sed -i 's/^          //' notes.md
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" dist/* --clobber
+            gh release edit "$tag" --notes-file notes.md --title "Offox $version"
+          else
+            gh release create "$tag" dist/* --target "$GITHUB_SHA" --title "Offox $version" --notes-file notes.md
+          fi
+          echo "https://github.com/${GITHUB_REPOSITORY}/releases/tag/$tag" >> "$GITHUB_STEP_SUMMARY"

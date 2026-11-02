@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{SITE_TITLE}}</title>
+  <meta name="description" content="{{SITE_DESCRIPTION}}">
+  <link rel="stylesheet" href="assets/ui.css">
+  <link rel="stylesheet" href="assets/photos.css">
+</head>
+<body>
+  <main id="main"><div class="albums" id="albums"></div></main>
+  <script src="/__offox/offox.js"></script>
+  <script src="assets/util.js"></script>
+  <script src="assets/photos.js"></script>
+  <script>
+    (async () => {
+      Photos.header(h("button", { class: "btn primary", onclick: async () => {
+        let data = await dialogForm("New album", [{ name: "name", label: "Album name", required: true }, { name: "description", label: "Description", type: "textarea", rows: 3 }], { submit: "Create" });
+        if (!data || !data.name.trim()) return;
+        let id = slugify(data.name) + "-" + Offox.id(4);
+        await Offox.writeJSON(`albums/${id}/album.json`, { name: data.name.trim(), description: data.description, created: new Date().toISOString(), captions: {} });
+        location.href = `album.html?id=${encodeURIComponent(id)}`;
+      } }, "＋ New album"));
+      let albums = await Photos.albums();
+      let grid = $("#albums");
+      for (let a of albums) {
+        grid.append(h("a", { class: "album", href: `album.html?id=${encodeURIComponent(a.id)}` },
+          h("div", { class: "cover" }, a.cover ? h("img", { src: Offox.url(`albums/${a.id}/${a.cover}`), loading: "lazy", alt: "" }) : "📷"),
+          h("b", {}, a.name), h("small", {}, `${plural(a.images.length, "photo")} · ${formatDate(a.created)}`)));
+      }
+      if (!albums.length) grid.replaceWith(h("div", { class: "empty" }, h("h2", {}, "No albums yet"), h("p", {}, "Create an album, then drag photos into it. You can also copy folders of pictures into the albums folder.")));
+    })();
+  </script>
+</body>
+</html>

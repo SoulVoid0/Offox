@@ -1,0 +1,11 @@
+{
+  "id": "blank",
+  "name": "Blank website",
+  "icon": "📄",
+  "description": "An empty starter site with index.html, style.css and script.js. Build anything with plain HTML, CSS and JavaScript.",
+  "defaultTitle": "My Website",
+  "defaultDomain": "my-site.home",
+  "shared": [],
+  "directories": [],
+  "searchRules": []
+}

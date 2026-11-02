@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{SITE_TITLE}}</title>
+  <meta name="description" content="{{SITE_DESCRIPTION}}">
+  <link rel="stylesheet" href="assets/ui.css">
+  <link rel="stylesheet" href="assets/docs.css">
+</head>
+<body>
+  <header class="home-top"><div class="brand"><span>≡</span>{{SITE_TITLE}}</div><input id="q" placeholder="Search documents"></header>
+  <section class="start"><div class="inner"><h3>Start a new document</h3><div class="templates" id="templates"></div></div></section>
+  <section class="recent"><h3>Recent documents</h3><div class="grid" id="grid"></div></section>
+  <script src="/__offox/offox.js"></script>
+  <script src="assets/util.js"></script>
+  <script src="assets/docs.js"></script>
+  <script>
+    (async () => {
+      let open = async (title, html) => (location.href = `doc.html?id=${await Docs.create(title, html)}`);
+      $("#templates").append(h("div", { class: "tpl", onclick: () => open() }, h("div", { class: "paper blank" }, "＋"), h("div", { class: "name" }, "Blank document")));
+      for (let [key, t] of Object.entries(STARTERS)) {
+        $("#templates").append(h("div", { class: "tpl", onclick: () => open(t.name, t.html) }, h("div", { class: "paper", html: t.html }), h("div", { class: "name" }, t.name)));
+      }
+      let importInput = h("input", { type: "file", accept: ".txt,.html,.htm,.md", hidden: true, onchange: async e => {
+        let f = e.target.files[0];
+        if (!f) return;
+        let text = await f.text();
+        let html = /\.html?$/i.test(f.name) ? new DOMParser().parseFromString(text, "text/html").body.innerHTML
+          : text.split(/\n{2,}/).map(p => `<p>${p.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/\n/g, "<br>")}</p>`).join("");
+        open(f.name.replace(/\.[^.]+$/, ""), html);
+      } });
+      $("#templates").append(h("label", { class: "tpl" }, h("div", { class: "paper blank" }, "⬆"), h("div", { class: "name" }, "Import file"), importInput));
+
+      let docs = await Docs.list();
+      let previews = {};
+      let render = () => {
+        let q = $("#q").value.toLowerCase();
+        let list = docs.filter(d => d.title.toLowerCase().includes(q) || (previews[d.id] || "").toLowerCase().includes(q));
+        $("#grid").replaceChildren(...list.map(d => {
+          let thumb = h("div", { class: "thumb" });
+          if (previews[d.id] !== undefined) thumb.innerHTML = previews[d.id];
+          else Offox.readText(`documents/${d.id}/document.html`, "").then(html => {
+            let clean = new DOMParser().parseFromString(html, "text/html");
+            clean.querySelectorAll("script,img").forEach(n => n.remove());
+            previews[d.id] = clean.body.innerHTML;
+            thumb.innerHTML = previews[d.id];
+          });
+          return h("div", { class: "doc-card" },
+            h("a", { href: `doc.html?id=${encodeURIComponent(d.id)}` }, thumb, h("div", { class: "info" }, h("b", {}, d.title), h("small", {}, "Opened " + timeAgo(d.updated)))),
+            h("button", { class: "more", title: "Delete", onclick: async () => {
+              if (!confirm(`Delete “${d.title}”?`)) return;
+              await Offox.remove(`documents/${d.id}`);
+              docs = docs.filter(x => x !== d);
+              render();
+            } }, "🗑"));
+        }));
+        if (!list.length) $("#grid").append(h("p", { class: "empty" }, docs.length ? "No documents match." : "No documents yet. Start one above."));
+      };
+      $("#q").addEventListener("input", render);
+      render();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+/* Offox shared dialog + toast styles (assets/ui.css). */
+.offox-dialog { border: 0; border-radius: 14px; padding: 0; width: min(560px, calc(100vw - 32px)); background: var(--surface, Canvas); color: var(--text, CanvasText); box-shadow: 0 20px 60px #0006; }
+.offox-dialog::backdrop { background: #0008; }
+.offox-dialog-form { display: flex; flex-direction: column; gap: 14px; padding: 22px; }
+.offox-dialog-form h2 { margin: 0 0 4px; font-size: 20px; }
+.offox-dialog-form label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 600; }
+.offox-dialog-form input, .offox-dialog-form textarea, .offox-dialog-form select { font: inherit; font-weight: 400; padding: 9px 11px; border-radius: 8px; border: 1px solid #8886; background: transparent; color: inherit; }
+.offox-dialog-buttons { display: flex; justify-content: flex-end; gap: 10px; margin-top: 6px; }
+.offox-dialog-buttons button { font: inherit; padding: 8px 18px; border-radius: 999px; border: 1px solid #8886; background: transparent; color: inherit; cursor: pointer; }
+.offox-dialog-buttons button.primary { background: var(--accent, #1a73e8); border-color: transparent; color: #fff; font-weight: 600; }

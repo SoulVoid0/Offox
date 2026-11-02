@@ -1,0 +1,13 @@
+{
+  "id": "blog",
+  "name": "Blog / journal",
+  "icon": "✍️",
+  "description": "Write posts in Markdown with tags, pictures and a clean reading view. Good for a diary, notes or a family news page.",
+  "defaultTitle": "My Journal",
+  "defaultDomain": "journal.blog",
+  "shared": ["util.js", "md.js", "ui.css"],
+  "directories": ["posts", "media"],
+  "searchRules": [
+    { "type": "files", "dir": "posts", "ext": ".md", "url": "/post.html?slug={stem}", "kind": "post" }
+  ]
+}

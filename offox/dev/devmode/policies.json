@@ -1,0 +1,25 @@
+{
+  "policies": {
+    "SearchEngines": {
+      "Add": [
+        {
+          "Name": "FireLine",
+          "URLTemplate": "https://fireline.offox/search?q={searchTerms}",
+          "SuggestURLTemplate": "https://fireline.offox/api/suggest?q={searchTerms}",
+          "Alias": "fl",
+          "Description": "Searches your Offox websites"
+        }
+      ],
+      "Default": "FireLine",
+      "Remove": ["Google", "Bing", "DuckDuckGo", "Amazon.com", "eBay", "Wikipedia (en)", "Ecosia", "Qwant", "Perplexity"]
+    },
+    "DisableTelemetry": true,
+    "DisableFirefoxStudies": true,
+    "DisableAppUpdate": true,
+    "DisablePocket": true,
+    "DisableFirefoxAccounts": true,
+    "OverrideFirstRunPage": "",
+    "OverridePostUpdatePage": "",
+    "Homepage": { "URL": "https://fireline.offox/", "StartPage": "homepage" }
+  }
+}

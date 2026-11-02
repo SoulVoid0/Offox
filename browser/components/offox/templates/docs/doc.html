@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Document – {{SITE_TITLE}}</title>
+  <meta name="fireline" content="noindex">
+  <link rel="stylesheet" href="assets/ui.css">
+  <link rel="stylesheet" href="assets/docs.css">
+</head>
+<body>
+  <div class="ed-top">
+    <a class="logo" href="./" title="All documents">≡</a>
+    <input class="title" id="title" aria-label="Document title">
+    <span class="status" id="status"></span>
+    <span class="spacer"></span>
+    <button class="btn" id="print">🖨 Print / PDF</button>
+  </div>
+  <div class="menubar" id="menubar"></div>
+  <div class="toolbar" id="toolbar"></div>
+  <div class="canvas"><div class="page" id="page" contenteditable="true" spellcheck="true"></div></div>
+  <div class="wordcount" id="words"></div>
+  <script src="/__offox/offox.js"></script>
+  <script src="assets/util.js"></script>
+  <script src="assets/docs.js"></script>
+  <script>
+    (async () => {
+      let id = param("id");
+      let dir = `documents/${id}`;
+      let meta = await Offox.readJSON(`${dir}/meta.json`, null);
+      if (!meta) { document.body.textContent = "Document not found."; return; }
+      let page = $("#page");
+      let html = await Offox.readText(`${dir}/document.html`, "<p><br></p>");
+      // Pictures are stored with relative paths; make them load from this document's folder.
+      page.innerHTML = html.replace(/src="images\//g, `src="/${dir}/images/`);
+      $("#title").value = meta.title;
+      document.title = `${meta.title} – {{SITE_TITLE}}`;
+      document.execCommand("styleWithCSS", false, true);
+      document.execCommand("defaultParagraphSeparator", false, "p");
+
+      // ---------- saving
+      let timer = null, saving = Promise.resolve();
+      let status = $("#status");
+      let save = () => {
+        clearTimeout(timer);
+        timer = null;
+        saving = saving.then(async () => {
+          status.textContent = "Saving…";
+          let body = page.innerHTML.replace(new RegExp(`src="/${dir}/images/`, "g"), 'src="images/');
+          await Offox.writeText(`${dir}/document.html`, body);
+          meta.title = $("#title").value.trim() || "Untitled document";
+          meta.updated = new Date().toISOString();
+          await Offox.writeJSON(`${dir}/meta.json`, meta);
+          document.title = `${meta.title} – {{SITE_TITLE}}`;
+          status.textContent = "All changes saved to disk";
+        }).catch(e => (status.textContent = "Could not save: " + e.message));
+      };
+      let changed = () => { status.textContent = "Editing…"; clearTimeout(timer); timer = setTimeout(save, 800); updateCount(); };
+      page.addEventListener("input", changed);
+      $("#title").addEventListener("input", changed);
+      addEventListener("beforeunload", e => { if (timer) { save(); e.preventDefault(); } });
+      let updateCount = () => {
+        let words = page.innerText.trim().split(/\s+/).filter(Boolean).length;
+        $("#words").textContent = `${plural(words, "word")} · ${plural(page.innerText.length, "character")}`;
+      };
+      updateCount();
+
+      // ---------- commands
+      let exec = (cmd, value = null) => { page.focus(); document.execCommand(cmd, false, value); changed(); refresh(); };
+      let insertHTML = html => exec("insertHTML", html);
+      let imageInput = h("input", { type: "file", accept: "image/*", hidden: true, onchange: async () => {
+        let f = imageInput.files[0];
+        if (!f) return;
+        let name = Date.now() + "-" + slugify(f.name);
+        await Offox.upload(`${dir}/images/${name}`, f);
+        insertHTML(`<img src="/${dir}/images/${encodeURIComponent(name)}" alt="">`);
+        imageInput.value = "";
+      } });
+      let insertTable = async () => {
+        let data = await dialogForm("Insert table", [{ name: "rows", label: "Rows", type: "number", value: "3" }, { name: "cols", label: "Columns", type: "number", value: "3" }], { submit: "Insert" });
+        if (!data) return;
+        let r = Math.min(50, Math.max(1, +data.rows)), c = Math.min(20, Math.max(1, +data.cols));
+        insertHTML(`<table><tbody>${Array.from({ length: r }, () => `<tr>${"<td><br></td>".repeat(c)}</tr>`).join("")}</tbody></table><p><br></p>`);
+      };
+      let insertLink = async () => {
+        let data = await dialogForm("Insert link", [{ name: "url", label: "Address", value: "https://" }], { submit: "Insert" });
+        if (data && data.url) exec("createLink", data.url);
+      };
+      let download = (name, text, type) => {
+        let a = h("a", { href: URL.createObjectURL(new Blob([text], { type })), download: name });
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      };
+      let exportHTML = () => download(`${meta.title}.html`, `<!doctype html><meta charset="utf-8"><title>${meta.title}</title><body style="max-width:800px;margin:40px auto;font:11pt/1.5 Arial,sans-serif">${page.innerHTML}`, "text/html");
+      let exportText = () => download(`${meta.title}.txt`, page.innerText, "text/plain");
+
+      // ---------- toolbar
+      let tb = $("#toolbar");
+      let button = (label, title, fn, state) => {
+        let b = h("button", { title, onmousedown: e => e.preventDefault(), onclick: fn }, label);
+        if (state) b.dataset.state = state;
+        return b;
+      };
+      let sep = () => h("span", { class: "sep" });
+      let blockSelect = h("select", { title: "Style", onchange: e => exec("formatBlock", e.target.value) },
+        [["p", "Normal text"], ["h1", "Heading 1"], ["h2", "Heading 2"], ["h3", "Heading 3"], ["blockquote", "Quote"], ["pre", "Code"]].map(([v, l]) => h("option", { value: v }, l)));
+      let fontSelect = h("select", { title: "Font", onchange: e => exec("fontName", e.target.value) },
+        ["Arial", "Georgia", "Times New Roman", "Verdana", "Trebuchet MS", "Courier New", "Comic Sans MS"].map(f => h("option", { value: f, style: { fontFamily: f } }, f)));
+      let sizeSelect = h("select", { title: "Size", onchange: e => exec("fontSize", e.target.value) },
+        [["1", "8"], ["2", "10"], ["3", "12"], ["4", "14"], ["5", "18"], ["6", "24"], ["7", "36"]].map(([v, l]) => h("option", { value: v, selected: v === "3" }, l)));
+      tb.append(
+        button("↶", "Undo (Ctrl+Z)", () => exec("undo")), button("↷", "Redo (Ctrl+Y)", () => exec("redo")), button("🖨", "Print", () => print()), sep(),
+        blockSelect, sep(), fontSelect, sizeSelect, sep(),
+        button(h("b", {}, "B"), "Bold (Ctrl+B)", () => exec("bold"), "bold"),
+        button(h("i", {}, "I"), "Italic (Ctrl+I)", () => exec("italic"), "italic"),
+        button(h("u", {}, "U"), "Underline (Ctrl+U)", () => exec("underline"), "underline"),
+        button(h("s", {}, "S"), "Strikethrough", () => exec("strikeThrough"), "strikeThrough"),
+        h("label", { title: "Text colour" }, "A", h("input", { type: "color", value: "#000000", onchange: e => exec("foreColor", e.target.value) })),
+        h("label", { title: "Highlight" }, "🖍", h("input", { type: "color", value: "#ffff00", onchange: e => exec("hiliteColor", e.target.value) })), sep(),
+        button("🔗", "Insert link", insertLink), button("🖼", "Insert picture", () => imageInput.click()), imageInput, button("▦", "Insert table", insertTable), sep(),
+        button("⯇≡", "Align left", () => exec("justifyLeft"), "justifyLeft"), button("≡", "Center", () => exec("justifyCenter"), "justifyCenter"),
+        button("≡⯈", "Align right", () => exec("justifyRight"), "justifyRight"), button("☰", "Justify", () => exec("justifyFull"), "justifyFull"), sep(),
+        button("• ≡", "Bulleted list", () => exec("insertUnorderedList"), "insertUnorderedList"), button("1. ≡", "Numbered list", () => exec("insertOrderedList"), "insertOrderedList"),
+        button("⇤", "Decrease indent", () => exec("outdent")), button("⇥", "Increase indent", () => exec("indent")), sep(),
+        button("―", "Horizontal line", () => exec("insertHorizontalRule")), button("⌫", "Clear formatting", () => exec("removeFormat")));
+
+      let refresh = () => {
+        $$("#toolbar button[data-state]").forEach(b => { try { b.classList.toggle("on", document.queryCommandState(b.dataset.state)); } catch (e) {} });
+        try {
+          let block = (document.queryCommandValue("formatBlock") || "p").toLowerCase().replace(/[<>]/g, "");
+          blockSelect.value = ["h1", "h2", "h3", "blockquote", "pre"].includes(block) ? block : "p";
+        } catch (e) {}
+      };
+      document.addEventListener("selectionchange", refresh);
+
+      // ---------- menus
+      let menu = (label, items) => {
+        let drop = h("div", { class: "drop" }, items.map(([l, fn]) => h("button", { onmousedown: e => e.preventDefault(), onclick: () => { drop.classList.remove("open"); fn(); } }, l)));
+        return h("div", {}, h("button", { onclick: e => { e.stopPropagation(); $$(".menubar .drop").forEach(d => d !== drop && d.classList.remove("open")); drop.classList.toggle("open"); } }, label), drop);
+      };
+      document.addEventListener("click", () => $$(".menubar .drop").forEach(d => d.classList.remove("open")));
+      $("#menubar").append(
+        menu("File", [
+          ["New document", async () => (location.href = `doc.html?id=${await Docs.create()}`)],
+          ["Make a copy", async () => (location.href = `doc.html?id=${await Docs.create(meta.title + " (copy)", page.innerHTML.replace(new RegExp(`/${dir}/images/`, "g"), `/${dir}/images/`))}`)],
+          ["Download as HTML", exportHTML], ["Download as plain text", exportText],
+          ["Print / Save as PDF", () => print()],
+          ["Delete document", async () => { if (confirm("Delete this document?")) { await Offox.remove(dir); location.href = "./"; } }],
+          ["All documents", () => (location.href = "./")]]),
+        menu("Edit", [["Undo", () => exec("undo")], ["Redo", () => exec("redo")], ["Select all", () => exec("selectAll")],
+          ["Find and replace", async () => {
+            let data = await dialogForm("Find and replace", [{ name: "find", label: "Find" }, { name: "replace", label: "Replace with" }], { submit: "Replace all" });
+            if (!data || !data.find) return;
+            let walker = document.createTreeWalker(page, NodeFilter.SHOW_TEXT);
+            let count = 0;
+            while (walker.nextNode()) {
+              let n = walker.currentNode;
+              let parts = n.nodeValue.split(data.find);
+              if (parts.length > 1) { count += parts.length - 1; n.nodeValue = parts.join(data.replace); }
+            }
+            toast(`${plural(count, "replacement")}`);
+            changed();
+          }]]),
+        menu("Insert", [["Picture", () => imageInput.click()], ["Table", insertTable], ["Link", insertLink], ["Horizontal line", () => exec("insertHorizontalRule")],
+          ["Date", () => insertHTML(new Date().toLocaleDateString())], ["Page break", () => insertHTML('<hr style="page-break-after:always;border:0;border-top:1px dashed #bbb">')]]),
+        menu("Format", [["Heading 1", () => exec("formatBlock", "h1")], ["Heading 2", () => exec("formatBlock", "h2")], ["Normal text", () => exec("formatBlock", "p")],
+          ["Superscript", () => exec("superscript")], ["Subscript", () => exec("subscript")], ["Clear formatting", () => exec("removeFormat")]]));
+      $("#print").onclick = () => print();
+      document.addEventListener("keydown", e => {
+        if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); save(); }
+        if ((e.ctrlKey || e.metaKey) && e.key === "k") { e.preventDefault(); insertLink(); }
+        if ((e.ctrlKey || e.metaKey) && e.key === "p") { /* browser print */ }
+      });
+      page.focus();
+    })();
+  </script>
+</body>
+</html>

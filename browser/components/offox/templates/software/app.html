@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{SITE_TITLE}}</title>
+  <meta name="fireline" content="noindex">
+  <link rel="stylesheet" href="assets/ui.css">
+  <link rel="stylesheet" href="assets/store.css">
+</head>
+<body>
+  <main id="main"></main>
+  <script src="/__offox/offox.js"></script>
+  <script src="assets/util.js"></script>
+  <script src="assets/md.js"></script>
+  <script src="assets/store.js"></script>
+  <script>
+    (async () => {
+      Store.layout();
+      let id = param("id");
+      let main = $("#main");
+      let app = (await Store.apps()).find(a => a.id === id);
+      if (!app) {
+        main.append(h("div", { class: "empty" }, h("h2", {}, "This app is not in the store"), h("a", { class: "btn", href: "./" }, "Back to the store")));
+        return;
+      }
+      document.title = `${app.name} – {{SITE_TITLE}}`;
+      let entries = await Offox.list(`apps/${app.id}/files`);
+      let sizes = Object.fromEntries(entries.map(e => [e.name, e.size]));
+      let fact = (label, value) => value ? h("div", {}, h("b", {}, value), label) : null;
+      main.append(h("div", { class: "hero" },
+        Store.iconNode(app),
+        h("div", { style: { flex: 1, minWidth: "240px" } },
+          h("h1", {}, app.name),
+          h("div", { class: "meta" }, app.publisher || ""),
+          h("div", { class: "facts" },
+            fact("Version", app.version), fact("Category", app.category), fact("Platforms", app.platforms.join(", ")),
+            fact("License", app.license), fact("Added", formatDate(app.created)), fact("Updated", app.updated && formatDate(app.updated))),
+          h("div", { style: { display: "flex", gap: "8px", flexWrap: "wrap" } },
+            app.files[0] ? h("a", { class: "btn primary", href: Offox.url(`apps/${app.id}/files/${app.files[0].name}`) + "?download" }, "⬇ Download") : null,
+            h("a", { class: "btn", href: `edit.html?id=${encodeURIComponent(app.id)}` }, "✎ Edit"),
+            h("button", { class: "btn danger", onclick: async () => {
+              if (!confirm(`Remove ${app.name} and all its files from the store?`)) return;
+              await Offox.remove(`apps/${app.id}`);
+              location.href = "./";
+            } }, "🗑 Remove")))));
+      if (app.files.length) {
+        main.append(h("div", { class: "section" }, h("h2", {}, "Downloads"), h("div", { class: "downloads" },
+          app.files.map(f => h("div", { class: "download" },
+            h("span", { style: { fontSize: "24px" } }, "📦"),
+            h("div", { class: "name" }, f.name, h("small", {}, [f.platform, formatSize(sizes[f.name]), f.note].filter(Boolean).join(" · "))),
+            h("a", { class: "btn", href: Offox.url(`apps/${app.id}/files/${f.name}`) + "?download" }, "Download"))))));
+      }
+      if (app.screenshots?.length) {
+        main.append(h("div", { class: "section" }, h("h2", {}, "Screenshots"), h("div", { class: "shots" },
+          app.screenshots.map(s => h("a", { href: Offox.url(`apps/${app.id}/screenshots/${s}`), target: "_blank" }, h("img", { src: Offox.url(`apps/${app.id}/screenshots/${s}`), alt: "" }))))));
+      }
+      main.append(h("div", { class: "section" }, h("h2", {}, "About this software"),
+        h("div", { class: "content", html: Markdown.render(app.description || "No description.").html }),
+        app.homepage ? h("p", {}, "Website: ", h("a", { href: app.homepage }, app.homepage)) : null));
+    })();
+  </script>
+</body>
+</html>

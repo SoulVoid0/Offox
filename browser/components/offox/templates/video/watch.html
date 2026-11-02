@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{SITE_TITLE}}</title>
+  <meta name="fireline" content="noindex">
+  <link rel="icon" href="assets/logo.svg">
+  <link rel="stylesheet" href="assets/ui.css">
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body class="sidebar-collapsed">
+  <main id="main">
+    <div class="watch">
+      <div class="primary">
+        <div class="player" id="player"></div>
+        <h1 id="title"></h1>
+        <div class="row">
+          <div class="meta" id="meta"></div>
+          <div class="buttons" id="buttons"></div>
+        </div>
+        <div class="description collapsed" id="description"></div>
+      </div>
+      <div class="secondary" id="secondary"></div>
+    </div>
+  </main>
+  <script src="/__offox/offox.js"></script>
+  <script src="assets/util.js"></script>
+  <script src="assets/app.js"></script>
+  <script>
+    (async () => {
+      await OffTube.layout("watch");
+      let id = param("v");
+      let listId = param("list");
+      let all = await OffTube.videos();
+      let video = all.find(v => v.id === id);
+      if (!video) {
+        $("#main").replaceChildren(h("div", { class: "empty" }, h("h2", {}, "This video isn't available"), h("p", {}, "It may have been deleted or moved."), h("a", { class: "btn", href: "./" }, "Go home")));
+        return;
+      }
+      document.title = `${video.title} – {{SITE_TITLE}}`;
+
+      // ---------- Player
+      let player = $("#player");
+      let el = h("video", { controls: true, autoplay: true, playsinline: true, preload: "metadata" });
+      el.src = OffTube.videoUrl(video);
+      if (video.hasThumb) el.poster = OffTube.thumbUrl(video);
+      player.append(el);
+
+      let notice = (...children) => {
+        player.querySelector(".notice")?.remove();
+        player.append(h("div", { class: "notice" }, ...children));
+      };
+
+      el.addEventListener("error", async () => {
+        if (!el.error || el.error.code !== MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED && el.error.code !== MediaError.MEDIA_ERR_DECODE) return;
+        let media = await Offox.media.info().catch(() => ({ ffmpeg: false }));
+        let ext = extOf(video.file).toUpperCase();
+        if (!media.ffmpeg) {
+          notice(h("h2", {}, `Offox can't play this ${ext} video yet`),
+            h("p", {}, "Install FFmpeg (or pick an ffmpeg program in about:offox → Video formats) and Offox will convert it into a format it can play. The original file is kept."),
+            h("a", { class: "btn", href: Offox.url(`videos/${video.id}/${video.original}`) + "?download" }, "Download original"));
+          return;
+        }
+        let bar = h("progress", { max: 1, value: 0 });
+        let status = h("p", {}, "");
+        let start = h("button", { class: "btn primary", onclick: async () => {
+          start.disabled = true;
+          try {
+            status.textContent = "Converting… you can keep using Offox meanwhile.";
+            let job = await Offox.media.convertAndWait(`videos/${video.id}/${video.original}`, {
+              onProgress: (p, j) => { bar.value = p; status.textContent = `${j.action === "transcode" ? "Converting" : "Repackaging"}… ${Math.round(p * 100)}%`; },
+            });
+            await OffTube.updateInfo(video.id, { converted: job.outputName, file: video.original });
+            location.reload();
+          } catch (e) {
+            status.textContent = "Conversion failed: " + e.message;
+            start.disabled = false;
+          }
+        } }, "Convert so it plays");
+        notice(h("h2", {}, `This ${ext} video needs converting`),
+          h("p", {}, "Firefox can't play this format directly. Offox can convert a copy with FFmpeg; the original file is kept."),
+          start, bar, status);
+      });
+
+      // Count a view once it has played for a few seconds; make a thumbnail if there is none.
+      let counted = false;
+      el.addEventListener("timeupdate", async () => {
+        if (counted || el.currentTime < 3) return;
+        counted = true;
+        let changes = { views: (video.views || 0) + 1 };
+        if (!video.duration && isFinite(el.duration)) changes.duration = el.duration;
+        if (!video.hasThumb && el.videoWidth) {
+          let c = document.createElement("canvas");
+          let scale = Math.min(1, 640 / el.videoWidth);
+          c.width = Math.round(el.videoWidth * scale);
+          c.height = Math.round(el.videoHeight * scale);
+          c.getContext("2d").drawImage(el, 0, 0, c.width, c.height);
+          let blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.82));
+          if (blob) await Offox.write(`videos/${video.id}/thumbnail.jpg`, blob);
+        }
+        await OffTube.updateInfo(video.id, changes);
+      });
+
+      // ---------- Details
+      $("#title").textContent = video.title;
+      $("#meta").textContent = `${plural(video.views + 1, "view")} · ${formatDate(video.created)}`;
+      $("#buttons").append(
+        h("button", { class: "btn", onclick: () => OffTube.saveToPlaylist(video.id) }, "≡+ Save"),
+        h("a", { class: "btn", href: Offox.url(`videos/${video.id}/${video.original}`) + "?download=" + encodeURIComponent(video.title + "." + extOf(video.original)) }, "⬇ Download"),
+        h("button", { class: "btn", onclick: async () => {
+          let data = await dialogForm("Edit video", [
+            { name: "title", label: "Title", value: video.title, required: true },
+            { name: "description", label: "Description", type: "textarea", value: video.description, rows: 8 },
+          ]);
+          if (!data) return;
+          await Offox.writeText(`videos/${video.id}/title.txt`, data.title.trim());
+          await Offox.writeText(`videos/${video.id}/description.txt`, data.description);
+          location.reload();
+        } }, "✎ Edit"),
+        h("button", { class: "btn danger", onclick: async () => {
+          if (!confirm(`Delete “${video.title}”? The video folder will be removed from your disk.`)) return;
+          await Offox.remove(`videos/${video.id}`);
+          for (let pl of await OffTube.playlists()) {
+            if (pl.videos.includes(video.id)) {
+              pl.videos = pl.videos.filter(x => x !== video.id);
+              await OffTube.savePlaylist(pl);
+            }
+          }
+          location.href = "./";
+        } }, "🗑 Delete"));
+
+      let desc = $("#description");
+      let text = h("div", { class: "text" }, linkify(video.description || "No description."));
+      desc.append(h("div", { class: "stats" }, `${formatDate(video.created)}${video.converted ? " · converted from " + extOf(video.original).toUpperCase() : ""}`), text);
+      if (video.description.split("\n").length > 3 || video.description.length > 240) {
+        let more = h("button", { class: "more", onclick: () => {
+          desc.classList.toggle("collapsed");
+          more.textContent = desc.classList.contains("collapsed") ? "…more" : "Show less";
+        } }, "…more");
+        desc.append(more);
+      }
+
+      // ---------- Playlist panel / up next
+      let secondary = $("#secondary");
+      let playlist = null;
+      if (listId) {
+        try { playlist = await Offox.readJSON(`playlists/${listId}.json`); } catch (e) {}
+      }
+      if (playlist) {
+        let items = playlist.videos.map(pid => all.find(v => v.id === pid)).filter(Boolean);
+        let index = items.findIndex(v => v.id === video.id);
+        let panel = h("div", { class: "panel" },
+          h("h2", {}, h("a", { href: `playlist.html?id=${encodeURIComponent(playlist.id)}` }, playlist.name)),
+          h("div", { class: "sub" }, `${index + 1} / ${items.length}`),
+          items.map(v => OffTube.compact(v, `watch.html?v=${encodeURIComponent(v.id)}&list=${encodeURIComponent(playlist.id)}`, v.id === video.id)));
+        secondary.append(panel);
+        panel.querySelector(".current")?.scrollIntoView({ block: "nearest" });
+        el.addEventListener("ended", () => {
+          let next = items[index + 1];
+          if (next) location.href = `watch.html?v=${encodeURIComponent(next.id)}&list=${encodeURIComponent(playlist.id)}`;
+        });
+      }
+      secondary.append(h("h3", {}, "Up next"));
+      for (let v of all.filter(v => v.id !== video.id).slice(0, 30)) {
+        secondary.append(OffTube.compact(v, `watch.html?v=${encodeURIComponent(v.id)}`));
+      }
+    })();
+  </script>
+</body>
+</html>

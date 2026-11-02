@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Create post – {{SITE_TITLE}}</title>
+  <meta name="fireline" content="noindex">
+  <link rel="stylesheet" href="assets/ui.css">
+  <link rel="stylesheet" href="assets/board.css">
+</head>
+<body>
+  <div class="layout single">
+    <main id="main">
+      <h1 id="heading">Create a post</h1>
+      <form class="editor" id="form">
+        <div class="row">
+          <label class="grow">Community
+            <input id="community" list="community-list" placeholder="general" autocomplete="off" required>
+            <datalist id="community-list"></datalist>
+          </label>
+          <label>Flair <input id="flair" placeholder="optional, e.g. Idea" maxlength="30"></label>
+        </div>
+        <label>Title <input id="title" maxlength="300" required placeholder="An interesting title"></label>
+        <div class="tabs" role="tablist">
+          <button type="button" class="tab active" data-tab="write">Text</button>
+          <button type="button" class="tab" data-tab="preview">Preview</button>
+        </div>
+        <textarea id="body" rows="10" placeholder="Text (optional). Markdown works: **bold**, *italic*, lists, > quotes, `code`, tables…"></textarea>
+        <div id="preview" class="md preview" hidden></div>
+        <div class="dropzone" id="dropzone">
+          <p><b>Pictures, GIFs and videos</b>: drop them here, paste them (Ctrl+V) or
+            <label class="link">choose files<input type="file" id="files" accept="image/*,video/*" multiple hidden></label>.</p>
+          <div class="thumbs" id="thumbs"></div>
+          <p class="muted" id="progress"></p>
+        </div>
+        <div class="row end">
+          <label class="check"><input type="checkbox" id="pinned"> Pin to the top</label>
+          <span class="grow"></span>
+          <button type="button" class="btn" id="cancel">Cancel</button>
+          <button class="btn primary" id="publish">Post</button>
+        </div>
+      </form>
+    </main>
+  </div>
+  <script src="/__offox/offox.js"></script>
+  <script src="assets/util.js"></script>
+  <script src="assets/md.js"></script>
+  <script src="assets/board.js"></script>
+  <script>
+    (async () => {
+      let editId = param("id");
+      let id = editId || Offox.id();
+      let existing = editId ? await Board.post(editId) : null;
+      let media = existing ? [...existing.media] : [];
+      let uploaded = [];
+      Board.header(existing ? existing.community : Board.cleanCommunity(param("c")));
+
+      let communities = await Board.communities(await Board.posts());
+      $("#community-list").append(...communities.map(c => h("option", { value: c.name })));
+      $("#community").value = existing ? existing.community : Board.cleanCommunity(param("c")) || communities[0]?.name || "general";
+      if (existing) {
+        $("#heading").textContent = "Edit post";
+        $("#publish").textContent = "Save";
+        $("#title").value = existing.title;
+        $("#flair").value = existing.flair;
+        $("#body").value = existing.body;
+        $("#pinned").checked = existing.pinned;
+        document.title = `Edit post – ${SITE_TITLE}`;
+      }
+
+      let renderThumbs = () => {
+        $("#thumbs").replaceChildren(...media.map((name, i) => h("figure", {},
+          Board.mediaNode(id, name, { thumb: true }),
+          h("figcaption", {},
+            h("button", { type: "button", title: "Move left", disabled: i === 0, onclick: () => { [media[i - 1], media[i]] = [media[i], media[i - 1]]; renderThumbs(); } }, "◀"),
+            h("button", { type: "button", title: "Put in the text", onclick: () => {
+              let area = $("#body");
+              area.setRangeText(`\n![](${encodeURIComponent(name)})\n`, area.selectionStart, area.selectionEnd, "end");
+              area.focus();
+            } }, "↧"),
+            h("button", { type: "button", title: "Remove", onclick: async () => {
+              media.splice(i, 1);
+              if (uploaded.includes(name)) await Offox.remove(`posts/${id}/${name}`).catch(() => {});
+              renderThumbs();
+            } }, "✕"),
+            h("button", { type: "button", title: "Move right", disabled: i === media.length - 1, onclick: () => { [media[i + 1], media[i]] = [media[i], media[i + 1]]; renderThumbs(); } }, "▶")))));
+      };
+      renderThumbs();
+
+      let busy = 0;
+      let add = async files => {
+        files = [...files];
+        if (!files.length) return;
+        busy++;
+        $("#publish").disabled = true;
+        try {
+          let names = await Board.addMedia(id, files, (file, p) => {
+            $("#progress").textContent = `Copying ${file.name || "picture"}… ${Math.round(p * 100)}%`;
+          });
+          uploaded.push(...names);
+          media.push(...names);
+          renderThumbs();
+        } catch (e) {
+          toast(e.message, 6000);
+        } finally {
+          $("#progress").textContent = "";
+          if (--busy === 0) $("#publish").disabled = false;
+        }
+      };
+      $("#files").addEventListener("change", e => { add(e.target.files); e.target.value = ""; });
+      let zone = $("#dropzone");
+      zone.addEventListener("dragover", e => { e.preventDefault(); zone.classList.add("over"); });
+      zone.addEventListener("dragleave", () => zone.classList.remove("over"));
+      zone.addEventListener("drop", e => { e.preventDefault(); zone.classList.remove("over"); add(e.dataTransfer.files); });
+      document.addEventListener("paste", e => {
+        let files = [...e.clipboardData.files];
+        if (files.length) { e.preventDefault(); add(files); }
+      });
+
+      for (let tab of document.querySelectorAll(".tab")) {
+        tab.addEventListener("click", () => {
+          let preview = tab.dataset.tab === "preview";
+          document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t === tab));
+          $("#body").hidden = preview;
+          $("#preview").hidden = !preview;
+          if (preview) $("#preview").replaceWith(Object.assign(Board.renderMarkdown($("#body").value || "*Nothing to preview.*", id), { id: "preview", className: "md preview" }));
+        });
+      }
+
+      $("#cancel").addEventListener("click", async () => {
+        if (!existing) await Offox.remove(`posts/${id}`).catch(() => {});
+        else for (let name of uploaded.filter(n => !media.includes(n))) await Offox.remove(`posts/${id}/${name}`).catch(() => {});
+        location.href = existing ? `post.html?id=${encodeURIComponent(id)}` : "./";
+      });
+
+      $("#form").addEventListener("submit", async e => {
+        e.preventDefault();
+        let community = Board.cleanCommunity($("#community").value) || "general";
+        let meta = existing ? { ...existing.meta } : { created: new Date().toISOString(), score: 1 };
+        Object.assign(meta, {
+          title: $("#title").value.trim(),
+          body: $("#body").value,
+          community,
+          flair: $("#flair").value.trim(),
+          pinned: $("#pinned").checked,
+          media,
+        });
+        if (existing) meta.edited = new Date().toISOString();
+        if (!meta.title) return toast("Give your post a title.");
+        try {
+          await Board.addCommunity(community);
+          await Board.savePost(id, meta);
+          if (!existing) Board.setMyVote("p:" + id, 1);
+          location.href = `post.html?id=${encodeURIComponent(id)}`;
+        } catch (err) {
+          toast(err.message, 6000);
+        }
+      });
+    })().catch(e => toast(e.message, 6000));
+  </script>
+</body>
+</html>

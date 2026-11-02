@@ -1,0 +1,13 @@
+{
+  "id": "music",
+  "name": "Music library",
+  "icon": "🎵",
+  "description": "A music player for your songs: library by artist and album, playlists, queue, shuffle and repeat. Plays MP3, AAC, FLAC, Ogg, Opus and WAV; converts others.",
+  "defaultTitle": "Music",
+  "defaultDomain": "music.player",
+  "shared": ["util.js", "ui.css"],
+  "directories": ["tracks", "playlists"],
+  "searchRules": [
+    { "type": "folders", "dir": "tracks", "json": "track.json", "titleKey": "title", "textKeys": ["artist", "album", "genre"], "url": "/?track={name}", "kind": "track" }
+  ]
+}

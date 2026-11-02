@@ -1,0 +1,13 @@
+{
+  "id": "software",
+  "name": "Software storage",
+  "icon": "💾",
+  "description": "An app store for installers, portable programs and drivers: versions, platforms, categories, screenshots and download buttons.",
+  "defaultTitle": "Software Store",
+  "defaultDomain": "software.store",
+  "shared": ["util.js", "md.js", "ui.css"],
+  "directories": ["apps"],
+  "searchRules": [
+    { "type": "folders", "dir": "apps", "json": "app.json", "titleKey": "name", "textKeys": ["description", "publisher", "category", "version", "platforms", "license"], "url": "/app.html?id={name}", "kind": "app" }
+  ]
+}

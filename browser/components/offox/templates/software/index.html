@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{SITE_TITLE}}</title>
+  <meta name="description" content="{{SITE_DESCRIPTION}}">
+  <link rel="stylesheet" href="assets/ui.css">
+  <link rel="stylesheet" href="assets/store.css">
+</head>
+<body>
+  <main id="main">
+    <div class="filters" id="categories"></div>
+    <div class="filters" id="platforms"></div>
+    <div class="grid" id="grid"></div>
+  </main>
+  <script src="/__offox/offox.js"></script>
+  <script src="assets/util.js"></script>
+  <script src="assets/store.js"></script>
+  <script>
+    (async () => {
+      Store.layout();
+      let apps = await Store.apps();
+      let q = (param("q") || "").toLowerCase();
+      let category = "All", platform = "All";
+      let render = () => {
+        let list = apps.filter(a =>
+          (category === "All" || a.category === category) &&
+          (platform === "All" || a.platforms.includes(platform) || a.platforms.includes("Any")) &&
+          (!q || [a.name, a.publisher, a.description, a.category].join(" ").toLowerCase().includes(q)));
+        $("#grid").replaceChildren(...list.map(Store.card));
+        if (!list.length) $("#grid").append(h("div", { class: "empty", style: { gridColumn: "1/-1" } },
+          h("h2", {}, apps.length ? "No software matches" : "Your store is empty"),
+          h("p", {}, apps.length ? "Try another filter or search." : "Add installers and portable programs so they're always at hand, even without internet."),
+          h("a", { class: "btn primary", href: "edit.html" }, "＋ Add software")));
+        $$("#categories .filter").forEach(b => b.classList.toggle("active", b.dataset.v === category));
+        $$("#platforms .filter").forEach(b => b.classList.toggle("active", b.dataset.v === platform));
+      };
+      let used = new Set(apps.map(a => a.category).filter(Boolean));
+      for (let c of ["All", ...CATEGORIES.filter(c => used.has(c))]) {
+        $("#categories").append(h("button", { class: "filter", "data-v": c, onclick: () => { category = c; render(); } }, c === "All" ? "All categories" : `${CATEGORY_ICON[c] || ""} ${c}`));
+      }
+      for (let p of ["All", ...PLATFORMS.filter(p => p !== "Any")]) {
+        $("#platforms").append(h("button", { class: "filter", "data-v": p, onclick: () => { platform = p; render(); } }, p === "All" ? "All platforms" : p));
+      }
+      render();
+    })();
+  </script>
+</body>
+</html>
