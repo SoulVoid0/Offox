@@ -16,6 +16,7 @@ import tempfile
 import time
 
 from selenium import webdriver
+from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
@@ -41,7 +42,10 @@ def wait(predicate, timeout=60):
             return predicate()
         except Exception:
             return False
-    return WebDriverWait(driver, timeout).until(attempt)
+    try:
+        return WebDriverWait(driver, timeout).until(attempt)
+    except TimeoutException:
+        return False
 
 
 def open_privileged(url):
@@ -100,10 +104,10 @@ try:
     check("Offddit" in driver.title, "reddit.com is the notes board")
     shot("04-offddit")
     driver.get("https://wikipedia.org/")
-    wait(lambda: driver.title != "")
+    wait(lambda: "Offpedia" in driver.title or "Main" in driver.title, 20)
     check("Offpedia" in driver.title or "Main" in driver.title, f"wikipedia.org is Offpedia (title {driver.title!r})")
     driver.get("https://fireline.offox/search?q=offox")
-    wait(lambda: driver.title != "")
+    wait(lambda: len(driver.find_elements(By.CSS_SELECTOR, "a")) > 3, 20)
     check(len(driver.find_elements(By.CSS_SELECTOR, "a")) > 3, "FireLine search answers")
     shot("05-fireline-search")
     driver.get("https://not-a-site.example/")
@@ -136,8 +140,12 @@ try:
             topSites: Services.prefs.getStringPref('browser.newtabpage.activity-stream.default.sites', ''),
             remoteTopSites: Services.prefs.getBoolPref('browser.topsites.useRemoteSetting', true),
             proxyLocked: Services.prefs.prefIsLocked('network.proxy.type'),
-            engine: Services.search.defaultEngine?.name || '',
           };""")
+        state["engine"] = driver.execute_async_script("""
+          let done = arguments[arguments.length - 1];
+          let search = window.Services?.search || Services.search;
+          search.init().then(() => search.getDefault())
+            .then(e => done(e?.name || ''), e => done('error: ' + e));""")
         print("  window:", json.dumps(state))
         check(state["appMenu"], "the app menu has Offox Sites")
         check(state["toolsMenu"], "the Tools menu has Offox Sites")
