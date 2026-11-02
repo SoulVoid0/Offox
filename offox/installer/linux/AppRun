@@ -1,0 +1,52 @@
+#!/bin/sh
+# Offox AppImage entry point. Runs Offox, or with one of these options:
+#   --install     add Offox to your applications menu (copies the AppImage to
+#                 ~/.local/bin and adds a menu entry and icon; no sudo)
+#   --uninstall   remove what --install added (your settings and websites stay)
+#   --portable    keep Offox's settings in a folder next to the AppImage
+#                 (<AppImage>.home), e.g. on a USB drive
+#   --help        show this text
+HERE="$(dirname "$(readlink -f "$0")")"
+SELF="${APPIMAGE:-$HERE/AppRun}"
+DATA="${XDG_DATA_HOME:-$HOME/.local/share}"
+BIN="$HOME/.local/bin/Offox.AppImage"
+
+case "${1:-}" in
+  --install)
+    mkdir -p "$(dirname "$BIN")" "$DATA/applications" "$DATA/icons/hicolor/128x128/apps"
+    if [ "$SELF" != "$BIN" ]; then
+      cp -f "$SELF" "$BIN"
+      chmod +x "$BIN"
+    fi
+    cp -f "$HERE/offox.png" "$DATA/icons/hicolor/128x128/apps/offox.png"
+    sed "s|^Exec=offox|Exec=\"$BIN\"|" "$HERE/offox.desktop" > "$DATA/applications/offox.desktop"
+    command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$DATA/applications" >/dev/null 2>&1
+    echo "Offox is installed: $BIN"
+    echo "It is in your applications menu. Run '$BIN --uninstall' to remove it."
+    exit 0
+    ;;
+  --uninstall)
+    rm -f "$DATA/applications/offox.desktop" "$DATA/icons/hicolor/128x128/apps/offox.png"
+    [ "$SELF" = "$BIN" ] || rm -f "$BIN"
+    echo "Offox was removed from the applications menu."
+    echo "Your settings (~/.mozilla/offox) and your websites were kept."
+    [ "$SELF" = "$BIN" ] && echo "Delete $BIN to finish."
+    exit 0
+    ;;
+  --portable)
+    if [ -z "${APPIMAGE:-}" ]; then
+      echo "--portable only works when running the .AppImage file."
+      exit 1
+    fi
+    mkdir -p "$APPIMAGE.home"
+    echo "Portable mode is on: Offox keeps its settings in $APPIMAGE.home"
+    echo "(delete that folder to turn it off). Start Offox again to use it."
+    exit 0
+    ;;
+  --help|-h)
+    sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//'
+    exit 0
+    ;;
+esac
+
+exec "$HERE/usr/lib/offox/offox" "$@"

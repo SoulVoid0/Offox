@@ -7,7 +7,9 @@
 ;                      registry or anywhere else.
 ;
 ; Built by installer\build-windows.ps1:
-;   makensis /DSTAGE=<unpacked "mach package" folder> /DVERSION=153.0.1 /DOUTFILE=Offox-Setup.exe offox.nsi
+;   makensis /DSTAGE=<unpacked "mach package" folder> /DVERSION=153.5.1 /DOUTFILE=Offox-Setup.exe offox.nsi
+; It also builds on Linux (CI cross-compiles Windows Offox; see
+; offox/installer/build-windows-on-linux.sh).
 ;
 ; Silent installs:
 ;   Offox-Setup.exe /S                         normal install
@@ -30,32 +32,37 @@ ManifestDPIAware true
 !ifndef VERSION
   !define VERSION "0.0"
 !endif
+; VIProductVersion needs exactly four numbers (153.5.1 -> 153.5.1.0).
+!ifndef VIVERSION
+  !searchparse /noerrors "${VERSION}.0.0.0.0" "" VI1 "." VI2 "." VI3 "." VI4 "."
+  !define VIVERSION "${VI1}.${VI2}.${VI3}.${VI4}"
+!endif
 !ifndef OUTFILE
   !define OUTFILE "Offox-${VERSION}-Setup.exe"
 !endif
 
 !define APPNAME "Offox"
 !define UNINSTKEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\Offox"
-!define BRANDING "${__FILEDIR__}\..\..\..\browser\branding\offox"
+!define BRANDING "${__FILEDIR__}/../../../browser/branding/offox"
 
 Name "${APPNAME}"
 OutFile "${OUTFILE}"
 InstallDir "$LOCALAPPDATA\Programs\Offox"
 BrandingText "Offox ${VERSION}"
-VIProductVersion "${VERSION}.0.0"
+VIProductVersion "${VIVERSION}"
 VIAddVersionKey "ProductName" "Offox"
 VIAddVersionKey "FileDescription" "Offox installer"
 VIAddVersionKey "ProductVersion" "${VERSION}"
 VIAddVersionKey "FileVersion" "${VERSION}"
 VIAddVersionKey "LegalCopyright" "MPL 2.0 / MIT"
 
-!define MUI_ICON "${BRANDING}\firefox.ico"
-!define MUI_UNICON "${BRANDING}\firefox.ico"
-!define MUI_WELCOMEFINISHPAGE_BITMAP "${BRANDING}\wizWatermark.bmp"
-!define MUI_UNWELCOMEFINISHPAGE_BITMAP "${BRANDING}\wizWatermark.bmp"
+!define MUI_ICON "${BRANDING}/firefox.ico"
+!define MUI_UNICON "${BRANDING}/firefox.ico"
+!define MUI_WELCOMEFINISHPAGE_BITMAP "${BRANDING}/wizWatermark.bmp"
+!define MUI_UNWELCOMEFINISHPAGE_BITMAP "${BRANDING}/wizWatermark.bmp"
 !define MUI_HEADERIMAGE
 !define MUI_HEADERIMAGE_RIGHT
-!define MUI_HEADERIMAGE_BITMAP "${BRANDING}\wizHeader.bmp"
+!define MUI_HEADERIMAGE_BITMAP "${BRANDING}/wizHeader.bmp"
 !define MUI_ABORTWARNING
 
 Var Portable          ; "1" for a portable install
@@ -197,12 +204,12 @@ Section "Offox" SecMain
   SectionIn RO
   Call EnsureOffoxFolder
   SetOutPath "$INSTDIR"
-  File /r "${STAGE}\*.*"
+  File /r "${STAGE}/*.*"
 
-  !if /FileExists "${__FILEDIR__}\ffmpeg\ffmpeg.exe"
+  !if /FileExists "${__FILEDIR__}/ffmpeg/ffmpeg.exe"
     ; Optional: an LGPL build of FFmpeg for converting old video formats.
     SetOutPath "$INSTDIR\ffmpeg"
-    File /r "${__FILEDIR__}\ffmpeg\*.*"
+    File /r "${__FILEDIR__}/ffmpeg/*.*"
     SetOutPath "$INSTDIR"
   !endif
 
