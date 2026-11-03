@@ -293,6 +293,15 @@ table{width:100%;border-collapse:collapse}td{padding:.4rem;border-bottom:1px sol
       search: async () => json(await this.fireline.search(q.get("q") || "")),
       "media/info": async () =>
         json(this.media ? await this.media.info() : { ffmpeg: false }),
+      "media/speech": async () =>
+        json(this.media && this.media.speechInfo ? await this.media.speechInfo() : { available: false, ffmpeg: false, models: [] }),
+      "media/subtitle-streams": async () => {
+        if (!this.media) {
+          return json([]);
+        }
+        let { path } = this._resolve(site, q.get("path"));
+        return json(await this.media.subtitleStreams(path));
+      },
       "media/job": async () => {
         if (!this.media) {
           throw new OffoxError(501, "Video conversion is not available");
@@ -355,6 +364,33 @@ table{width:100%;border-collapse:collapse}td{padding:.4rem;border-bottom:1px sol
         let { path } = this._resolve(site, q.get("path"));
         let out = q.get("output") ? this._resolve(site, q.get("output")).path : null;
         return json(await this.media.convert(path, { output: out, mode: q.get("mode") || "auto" }));
+      },
+      "media/subtitles": async () => {
+        if (!this.media) {
+          throw new OffoxError(501, "Automatic subtitles are not available");
+        }
+        let { path } = this._resolve(site, q.get("path"));
+        let dir = this._resolve(site, q.get("dir")).path;
+        let audio = q.get("audio") ? this._resolve(site, q.get("audio")).path : null;
+        let job = await this.media.transcribe(path, {
+          dir,
+          language: q.get("language") || "auto",
+          translate: q.get("translate") === "1",
+          audio,
+          removeAudio: !!audio && q.get("removeAudio") === "1",
+        });
+        if (job.state !== "failed") {
+          this.fireline.invalidate(site);
+        }
+        return json(job);
+      },
+      "media/extract-subtitles": async () => {
+        if (!this.media) {
+          throw new OffoxError(501, "Video tools are not available");
+        }
+        let { path } = this._resolve(site, q.get("path"));
+        let dir = this._resolve(site, q.get("dir")).path;
+        return json(await this.media.extractSubtitles(path, dir));
       },
     };
 

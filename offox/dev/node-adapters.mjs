@@ -5,11 +5,13 @@
 // Node.js implementations of the adapters the portable Offox modules use.
 // The browser uses IOUtils-based versions (browser/components/offox/modules/OffoxGecko.sys.mjs).
 
+import fs from "node:fs";
 import fsp from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { MediaConverter } from "../../browser/components/offox/modules/OffoxMedia.sys.mjs";
+import { MediaConverter, sortModels } from "../../browser/components/offox/modules/OffoxMedia.sys.mjs";
 
 export const OFFOX_DIR = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -81,22 +83,78 @@ export function nodeAssets(baseDir = OFFOX_DIR) {
   };
 }
 
+function onPath(name) {
+  for (let dir of (process.env.PATH || "").split(path.delimiter)) {
+    for (let ext of process.platform === "win32" ? [".exe", ""] : [""]) {
+      let p = path.join(dir, name + ext);
+      try {
+        fs.accessSync(p, fs.constants.X_OK);
+        if (fs.statSync(p).isFile()) {
+          return p;
+        }
+      } catch (e) {}
+    }
+  }
+  return null;
+}
+
+/**
+ * whisper.cpp for automatic subtitles: OFFOX_WHISPER / OFFOX_WHISPER_MODEL,
+ * or whisper-cli on the PATH and ggml-*.bin models in OFFOX_WHISPER_MODELS
+ * or ~/.local/share/whisper.cpp/models.
+ */
+export function nodeWhisperFinder(options = {}) {
+  return async () => {
+    let program = options.program || process.env.OFFOX_WHISPER || onPath("whisper-cli");
+    let programs = program && fs.existsSync(program) ? [program] : [];
+    let dirs = [
+      process.env.OFFOX_WHISPER_MODELS,
+      path.join(os.homedir(), ".local", "share", "whisper.cpp", "models"),
+    ].filter(Boolean);
+    let models = [];
+    for (let dir of dirs) {
+      try {
+        for (let name of fs.readdirSync(dir)) {
+          if (/^ggml-.*\.bin$/i.test(name)) {
+            models.push(path.join(dir, name));
+          }
+        }
+      } catch (e) {}
+    }
+    models = sortModels(models);
+    let chosen = options.model || process.env.OFFOX_WHISPER_MODEL;
+    let model = chosen && fs.existsSync(chosen) ? chosen : models[0] || null;
+    if (model && !models.includes(model)) {
+      models.unshift(model);
+    }
+    return { programs, model, models };
+  };
+}
+
 /** Video conversion through an ffmpeg executable, if one is installed. */
-export function nodeMedia(ffmpegPath = process.env.OFFOX_FFMPEG || "ffmpeg") {
+export function nodeMedia(ffmpegPath = process.env.OFFOX_FFMPEG || "ffmpeg", whisper = {}) {
   let available = spawnSync(ffmpegPath, ["-version"]).status === 0;
   return new MediaConverter({
     separator: path.sep,
+    fs: NodeFS,
+    threads: Math.max(1, Math.min(8, os.cpus().length - 1)),
     findFFmpeg: async () => (available ? ffmpegPath : null),
+    findWhisper: nodeWhisperFinder(whisper),
     run: (exe, args) =>
       new Promise(resolve => {
         let r = spawnSync(exe, args, { encoding: "utf8", maxBuffer: 64 << 20 });
         resolve({ code: r.status, stdout: r.stdout || "", stderr: r.stderr || "" });
       }),
-    stream: (exe, args, onStderr) =>
+    stream: (exe, args, onStderr, { stdout = false, cwd } = {}) =>
       new Promise(resolve => {
-        let child = spawn(exe, args);
+        let child = spawn(exe, args, cwd ? { cwd } : {});
         child.stderr.on("data", chunk => onStderr(String(chunk)));
-        child.stdout.resume();
+        if (stdout) {
+          child.stdout.on("data", chunk => onStderr(String(chunk)));
+        } else {
+          child.stdout.resume();
+        }
+        child.on("error", () => resolve(-1));
         child.on("close", code => resolve(code));
       }),
   });

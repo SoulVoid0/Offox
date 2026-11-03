@@ -66,6 +66,12 @@ jobs:
           # msitools: unpacking the Windows SDK and MSVC for the Windows build.
           sudo apt-get install -y -q nsis unzip xz-utils file msitools
 
+      - name: Get the speech recognition files
+        uses: actions/download-artifact@v4
+        with:
+          name: whisper-${{ inputs.platform }}
+          path: ${{ runner.temp }}/whisper
+
       - name: Install sccache
         uses: mozilla-actions/sccache-action@v0.0.9
 
@@ -82,6 +88,7 @@ jobs:
         id: build
         env:
           OFFOX_SCCACHE: ${{ env.SCCACHE_PATH }}
+          OFFOX_WHISPER_DIR: ${{ runner.temp }}/whisper
         run: |
           # Leave time to save the cache and package before the 6 hour limit.
           offox/ci/build.sh ${{ inputs.platform }} 285

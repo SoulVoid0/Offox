@@ -20,6 +20,7 @@
           <div class="buttons" id="buttons"></div>
         </div>
         <div class="description collapsed" id="description"></div>
+        <section class="comments" id="comments" aria-label="Comments"></section>
       </div>
       <div class="secondary" id="secondary"></div>
     </div>
@@ -27,6 +28,8 @@
   <script src="/__offox/offox.js"></script>
   <script src="assets/util.js"></script>
   <script src="assets/app.js"></script>
+  <script src="assets/comments.js"></script>
+  <script src="assets/subtitles.js"></script>
   <script>
     (async () => {
       await OffTube.layout("watch");
@@ -46,6 +49,213 @@
       el.src = OffTube.videoUrl(video);
       if (video.hasThumb) el.poster = OffTube.thumbUrl(video);
       player.append(el);
+      let seek = sec => { el.currentTime = sec; el.play().catch(() => {}); scrollTo({ top: 0, behavior: "smooth" }); };
+
+      // ---------- Subtitles (CC)
+      let tracks = [];
+      let speech = null;
+      let ccButton = h("button", { class: "btn", title: "Subtitles", onclick: () => subtitlesDialog() }, "CC Subtitles");
+      let transcriptButton = h("button", { class: "btn", hidden: true, onclick: () => toggleTranscript() }, "☰ Transcript");
+      let applyingTracks = false;
+
+      let tracksLoading = Promise.resolve();
+      function loadTracks(select) {
+        tracksLoading = tracksLoading.catch(() => {}).then(() => reloadTracks(select));
+        return tracksLoading;
+      }
+      async function reloadTracks(select) {
+        tracks = await OffTubeSubs.list(video.id);
+        applyingTracks = true;
+        for (let t of [...el.querySelectorAll("track")]) t.remove();
+        let want = select || OffTubeSubs.preferred();
+        // Show the preferred language, else the first track you added yourself.
+        let chosen = want === "off" ? null
+          : tracks.find(t => t.name === want) || tracks.find(t => t.lang === want && !t.auto) || tracks.find(t => t.lang === want) || null;
+        for (let t of tracks) {
+          let node = h("track", { kind: "subtitles", label: t.label, srclang: t.lang === "und" ? "" : t.lang, src: t.url });
+          el.append(node);
+          t.track = node.track;
+        }
+        // Browsers may pick a track by themselves after <track>s are added;
+        // apply the choice again once they have settled.
+        let apply = () => { for (let t of tracks) t.track.mode = chosen && t.name === chosen.name ? "showing" : "disabled"; };
+        apply();
+        await new Promise(r => setTimeout(r, 50));
+        apply();
+        ccButton.classList.toggle("on", !!chosen);
+        ccButton.textContent = tracks.length ? `CC ${chosen ? chosen.lang.toUpperCase() : "Off"}` : "CC Subtitles";
+        transcriptButton.hidden = !tracks.length;
+        setTimeout(() => { applyingTracks = false; }, 50);
+        if (transcriptPanel.isConnected) showTranscript();
+      }
+
+      // Remember the language picked in the player's own CC menu.
+      el.textTracks.addEventListener("change", () => {
+        if (applyingTracks) return;
+        let t = tracks.find(x => x.track && x.track.mode === "showing");
+        OffTubeSubs.setPreferred(t ? t.lang : "off");
+        ccButton.classList.toggle("on", !!t);
+        if (tracks.length) ccButton.textContent = `CC ${t ? t.lang.toUpperCase() : "Off"}`;
+        if (transcriptPanel.isConnected) showTranscript();
+      });
+
+      let transcriptPanel = h("div", { class: "panel transcript" });
+      async function showTranscript() {
+        let t = tracks.find(x => x.track && x.track.mode === "showing") || tracks[0];
+        if (!t) { transcriptPanel.remove(); return; }
+        let cues = OffTubeSubs.parseVtt(await (await fetch(t.url, { cache: "no-store" })).text());
+        let pick = h("select", { "aria-label": "Transcript language", onchange: e => {
+          OffTubeSubs.setPreferred(e.target.value);
+          loadTracks(e.target.value);
+        } }, tracks.map(x => h("option", { value: x.name, selected: x === t }, x.label)));
+        let rows = cues.map(c => h("button", { class: "cue", "data-start": c.start, onclick: () => seek(c.start) },
+          h("span", { class: "time" }, cueTime(c.start)), h("span", {}, c.text)));
+        transcriptPanel.replaceChildren(
+          h("div", { class: "transcript-head" }, h("h2", {}, "Transcript"),
+            h("button", { class: "icon-btn", title: "Close", onclick: () => transcriptPanel.remove() }, "✕")),
+          pick,
+          h("div", { class: "cues" }, rows.length ? rows : h("p", { class: "meta" }, "This subtitle file is empty.")));
+        if (!transcriptPanel.isConnected) $("#secondary").prepend(transcriptPanel);
+      }
+      function cueTime(sec) {
+        sec = Math.floor(sec);
+        let hh = Math.floor(sec / 3600), mm = Math.floor(sec / 60) % 60, ss = String(sec % 60).padStart(2, "0");
+        return hh ? `${hh}:${String(mm).padStart(2, "0")}:${ss}` : `${mm}:${ss}`;
+      }
+      function toggleTranscript() {
+        if (transcriptPanel.isConnected) transcriptPanel.remove();
+        else showTranscript();
+      }
+      el.addEventListener("timeupdate", () => {
+        if (!transcriptPanel.isConnected) return;
+        let now = el.currentTime;
+        let current = null;
+        for (let b of transcriptPanel.querySelectorAll(".cue")) {
+          let on = Number(b.dataset.start) <= now;
+          if (on) current = b;
+          b.classList.remove("current");
+        }
+        if (current) {
+          current.classList.add("current");
+          let box = transcriptPanel.querySelector(".cues");
+          if (current.offsetTop < box.scrollTop || current.offsetTop > box.scrollTop + box.clientHeight - 40) {
+            box.scrollTop = current.offsetTop - box.clientHeight / 3;
+          }
+        }
+      });
+
+      let subsStatus = h("div", { class: "subs-progress", hidden: true }, h("progress", { max: 1, value: 0 }), h("span", {}));
+      let setSubsProgress = (p, text) => {
+        subsStatus.hidden = false;
+        subsStatus.firstChild.value = p;
+        subsStatus.lastChild.textContent = text;
+      };
+
+      async function generateSubs(language, translate) {
+        setSubsProgress(0, "Starting…");
+        try {
+          let job = await OffTubeSubs.generate(video, { language, translate, onProgress: setSubsProgress });
+          subsStatus.hidden = true;
+          OffTubeSubs.setPreferred(job.language);
+          await loadTracks(job.outputName);
+          toast(`Automatic subtitles ready: ${OffTubeSubs.parseName(job.outputName)?.label || job.outputName}`);
+        } catch (e) {
+          setSubsProgress(0, "Automatic subtitles failed: " + e.message);
+        }
+      }
+
+      async function subtitlesDialog() {
+        speech = speech || await OffTubeSubs.speechInfo();
+        let list = h("div", { class: "track-list" });
+        let renderList = () => {
+          list.replaceChildren(...(tracks.length ? tracks.map((t, i) => h("div", { class: "track-row" },
+            h("label", {}, h("input", { type: "radio", name: "cc", checked: t.track?.mode === "showing", onchange: () => { OffTubeSubs.setPreferred(t.name); loadTracks(t.name); } }), t.label),
+            h("a", { class: "icon-btn", title: "Download", href: t.url + "?download=" + encodeURIComponent(`${video.title}.${t.name}`) }, "⬇"),
+            h("button", { class: "icon-btn", title: "Delete", onclick: async () => {
+              if (!confirm(`Delete the ${t.label} subtitles?`)) return;
+              await Offox.remove(`${OffTubeSubs.dir(video.id)}/${t.name}`);
+              await loadTracks();
+              renderList();
+            } }, "🗑"))) : [h("p", { class: "meta" }, "This video has no subtitles yet.")]),
+          tracks.length ? h("label", { class: "track-row" }, h("input", { type: "radio", name: "cc", checked: !tracks.some(x => x.track?.mode === "showing"), onchange: () => { OffTubeSubs.setPreferred("off"); loadTracks("off"); } }), "Off") : null);
+        };
+        renderList();
+
+        let lang = OffTubeSubs.languageSelect("auto");
+        let translate = h("input", { type: "checkbox", name: "translate" });
+        let genButton = h("button", { class: "btn primary", disabled: !speech.available, onclick: () => {
+          dlg.close();
+          generateSubs(lang.value, translate.checked);
+        } }, "Generate");
+        let auto = h("section", {},
+          h("h3", {}, "Automatic subtitles"),
+          speech.available
+            ? h("p", { class: "meta" }, `Offox listens to the video and writes subtitles on your computer, without the internet (speech model: ${speech.modelName}). It takes about as long as the video on a slow computer, and much less on a fast one.`)
+            : h("p", { class: "warn" }, "Speech recognition is not set up. Offox needs whisper.cpp and a speech model: they come with the Offox installers, or choose them in about:offox → Automatic subtitles."),
+          h("div", { class: "row-form" },
+            h("label", {}, "Spoken language ", lang),
+            h("label", {}, translate, " Translate to English"),
+            genButton));
+
+        let fileInput = h("input", { type: "file", accept: ".vtt,.srt,text/vtt", hidden: true });
+        let addLang = OffTubeSubs.languageSelect("en");
+        addLang.querySelector("option[value=auto]").remove();
+        addLang.prepend(h("option", { value: "und" }, "Unknown language"));
+        fileInput.addEventListener("change", async () => {
+          let file = fileInput.files[0];
+          if (!file) return;
+          try {
+            let guessed = OffTubeSubs.guessLang(file.name);
+            let name = await OffTubeSubs.add(video.id, file, guessed || addLang.value);
+            await loadTracks(name);
+            renderList();
+            toast("Subtitles added");
+          } catch (e) {
+            toast(e.message, 5000);
+          }
+          fileInput.value = "";
+        });
+        let upload = h("section", {},
+          h("h3", {}, "Add a subtitle file"),
+          h("div", { class: "row-form" },
+            h("label", {}, "Language ", addLang),
+            h("button", { class: "btn", onclick: () => fileInput.click() }, "Choose .vtt or .srt…"), fileInput));
+
+        let embedded = h("section", { hidden: true });
+        let media = await Offox.media.info().catch(() => ({ ffmpeg: false }));
+        if (media.ffmpeg) {
+          Offox.media.subtitleStreams(`videos/${video.id}/${video.original}`).then(streams => {
+            let text = streams.filter(s => s.text);
+            if (!text.length) return;
+            let status = h("span", { class: "meta" });
+            embedded.hidden = false;
+            embedded.append(h("h3", {}, "Subtitles inside the video file"),
+              h("p", { class: "meta" }, `This file contains ${plural(text.length, "subtitle track")}: ${text.map(s => OffTubeSubs.langName(s.language)).join(", ")}.`),
+              h("button", { class: "btn", onclick: async e => {
+                e.target.disabled = true;
+                status.textContent = " Copying…";
+                try {
+                  let files = await OffTubeSubs.extractEmbedded(video);
+                  await loadTracks(files[0]?.name);
+                  renderList();
+                  status.textContent = ` Added ${plural(files.length, "track")}.`;
+                } catch (err) {
+                  status.textContent = " Failed: " + err.message;
+                  e.target.disabled = false;
+                }
+              } }, "Add them"), status);
+          }).catch(() => {});
+        }
+
+        let dlg = h("dialog", { class: "offox-dialog subtitles-dialog" },
+          h("div", { class: "offox-dialog-form" },
+            h("h2", {}, "Subtitles"),
+            list, auto, embedded, upload,
+            h("div", { class: "offox-dialog-buttons" }, h("button", { class: "primary", onclick: () => dlg.close() }, "Done"))));
+        dlg.addEventListener("close", () => dlg.remove());
+        document.body.append(dlg);
+        dlg.showModal();
+      }
 
       let notice = (...children) => {
         player.querySelector(".notice")?.remove();
@@ -106,6 +316,8 @@
       $("#title").textContent = video.title;
       $("#meta").textContent = `${plural(video.views + 1, "view")} · ${formatDate(video.created)}`;
       $("#buttons").append(
+        ccButton,
+        transcriptButton,
         h("button", { class: "btn", onclick: () => OffTube.saveToPlaylist(video.id) }, "≡+ Save"),
         h("a", { class: "btn", href: Offox.url(`videos/${video.id}/${video.original}`) + "?download=" + encodeURIComponent(video.title + "." + extOf(video.original)) }, "⬇ Download"),
         h("button", { class: "btn", onclick: async () => {
@@ -140,6 +352,15 @@
         } }, "…more");
         desc.append(more);
       }
+
+      $(".watch > .primary").insertBefore(subsStatus, $("#description"));
+      loadTracks().then(() => OffTubeSubs.resume(video.id, setSubsProgress)).then(job => {
+        if (job) { subsStatus.hidden = true; loadTracks(job.outputName); }
+      }).catch(e => setSubsProgress(0, "Automatic subtitles failed: " + e.message));
+
+      // ---------- Comments
+      OffTubeComments.mount($("#comments"), { videoId: video.id, seek });
+      if (location.hash.startsWith("#t=")) el.currentTime = Number(location.hash.slice(3)) || 0;
 
       // ---------- Playlist panel / up next
       let secondary = $("#secondary");

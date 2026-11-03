@@ -1,0 +1,52 @@
+# Builds whisper.cpp (offline speech recognition for OffTube's automatic
+# subtitles) for Linux and Windows, downloads the speech model and checks
+# that it transcribes a sample. Used by release.yml; also runs by itself when
+# the build script changes.
+name: Speech recognition
+
+on:
+  workflow_call:
+  workflow_dispatch:
+  push:
+    paths:
+      - offox/installer/whisper/**
+      - .github/workflows/whisper.yml
+
+permissions:
+  contents: read
+
+jobs:
+  whisper:
+    name: Speech recognition (${{ matrix.platform }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      matrix:
+        platform: [linux, windows]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: offox
+      - name: Build whisper.cpp and download the model
+        run: offox/installer/whisper/build-whisper.sh ${{ matrix.platform }} whisper-out
+      - name: Transcribe a sample
+        if: matrix.platform == 'linux'
+        run: |
+          w=whisper-out/whisper
+          for exe in "$w/whisper-cli" "$w/whisper-cli-compat"; do
+            "$exe" -m "$w"/models/*.bin -f whisper-out/jfk.wav -l auto -ovtt -of whisper-out/jfk -pp -ml 60 -sow 2> whisper-out/log.txt || { cat whisper-out/log.txt; exit 1; }
+            grep -i "auto-detected language: en" whisper-out/log.txt
+            cat whisper-out/jfk.vtt
+            grep -qi "country" whisper-out/jfk.vtt
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: whisper-${{ matrix.platform }}
+          path: whisper-out/whisper
+          retention-days: 5
+      - uses: actions/upload-artifact@v4
+        if: matrix.platform == 'linux'
+        with:
+          name: speech-sample
+          path: whisper-out/jfk.wav
+          retention-days: 5
