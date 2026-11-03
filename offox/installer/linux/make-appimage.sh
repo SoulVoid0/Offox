@@ -13,7 +13,10 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 TARBALL="$(readlink -f "$1")"
 OUT="$(mkdir -p "${2:-.}" && cd "${2:-.}" && pwd)"
 NAME="$(basename "$TARBALL")"
-VERSION="$(echo "$NAME" | sed -E 's/^offox-([0-9.]+)(esr)?\..*/\1/')"
+# The Offox version (offox/fork/OFFOX_VERSION) names the files; without it,
+# the Firefox version of the build.
+VERSION="$(cat "$HERE/../../fork/OFFOX_VERSION" 2>/dev/null || true)"
+[ -n "$VERSION" ] || VERSION="$(echo "$NAME" | sed -E 's/^offox-([0-9.]+)(esr)?\..*/\1/')"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 

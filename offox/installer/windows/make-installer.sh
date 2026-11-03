@@ -10,7 +10,10 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 OBJDIR="$1"
 OUT="$(mkdir -p "${2:-.}" && cd "${2:-.}" && pwd)"
 ZIP="$(ls -t "$OBJDIR"/dist/offox-*.win64.zip | head -1)"
-VERSION="$(basename "$ZIP" | sed -E 's/^offox-([0-9.]+)(esr)?\..*/\1/')"
+# The Offox version (offox/fork/OFFOX_VERSION) names the files; without it,
+# the Firefox version of the build.
+VERSION="$(cat "$HERE/../../fork/OFFOX_VERSION" 2>/dev/null || true)"
+[ -n "$VERSION" ] || VERSION="$(basename "$ZIP" | sed -E 's/^offox-([0-9.]+)(esr)?\..*/\1/')"
 STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
 unzip -q "$ZIP" -d "$STAGE"

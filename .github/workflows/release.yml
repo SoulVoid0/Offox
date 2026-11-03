@@ -8,6 +8,11 @@ name: Build and release Offox
 
 on:
   workflow_dispatch:
+    inputs:
+      replaces:
+        description: "Tag of an earlier release to delete once this one is published (optional)"
+        required: false
+        default: ""
   push:
     branches: [release-build]
     tags: ["v*"]
@@ -205,16 +210,15 @@ jobs:
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
+          REPLACES: ${{ inputs.replaces }}
         run: |
-          version=$(sed -E 's/^FIREFOX_([0-9]+)_([0-9]+)_([0-9]+).*/\1.\2.\3/' offox/fork/FIREFOX_VERSION)
-          # Offox releases made from the same Firefox version: 153.5.1, 153.5.1-2, ...
-          revision=$(cat offox/fork/OFFOX_REVISION 2>/dev/null || echo 1)
-          name="$version"
-          if [ "$revision" -gt 1 ]; then name="$version-$revision"; fi
-          tag="v$name"
+          firefox=$(sed -E 's/^FIREFOX_([0-9]+)_([0-9]+)_([0-9]+).*/\1.\2.\3/' offox/fork/FIREFOX_VERSION)
+          # The Offox version names the release and its files (falls back to the Firefox version).
+          version=$(cat offox/fork/OFFOX_VERSION 2>/dev/null || echo "$firefox")
+          tag="v$version"
           ls -la dist
           cat > notes.md <<NOTES
-          Offox $name: a Firefox $version ESR based browser that never goes on the internet.
+          Offox $version: a Firefox $firefox ESR based browser that never goes on the internet.
 
           **New in this release:** OffTube (youtube.com) has **comments** (post, reply, like, pin, sort) and **automatic subtitles** made from the speech on your computer, in about 100 languages, with translation into English. Pick the language under **CC** on a video. Uploading a video together with the files yt-dlp saved next to it adds its YouTube subtitles, comments, title and description. Your existing OffTube site is updated automatically.
 
@@ -234,8 +238,12 @@ jobs:
           sed -i 's/^          //' notes.md
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" dist/* --clobber
-            gh release edit "$tag" --notes-file notes.md --title "Offox $name"
+            gh release edit "$tag" --notes-file notes.md --title "Offox $version"
           else
-            gh release create "$tag" dist/* --target "$GITHUB_SHA" --title "Offox $name" --notes-file notes.md
+            gh release create "$tag" dist/* --target "$GITHUB_SHA" --title "Offox $version" --notes-file notes.md
+          fi
+          # A release this one replaces (dispatch input), e.g. after a rename.
+          if [ -n "${REPLACES:-}" ] && [ "$REPLACES" != "$tag" ]; then
+            gh release delete "$REPLACES" --cleanup-tag --yes || true
           fi
           echo "https://github.com/${GITHUB_REPOSITORY}/releases/tag/$tag" >> "$GITHUB_STEP_SUMMARY"
