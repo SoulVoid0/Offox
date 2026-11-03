@@ -69,6 +69,7 @@ INNER
         -DCMAKE_C_COMPILER=x86_64-w64-mingw32-gcc-posix -DCMAKE_CXX_COMPILER=x86_64-w64-mingw32-g++-posix \
         -DCMAKE_RC_COMPILER=x86_64-w64-mingw32-windres \
         -DCMAKE_FIND_ROOT_PATH=/usr/x86_64-w64-mingw32 \
+        -DCMAKE_C_FLAGS="-include $HERE/mingw-compat.h" \
         -DCMAKE_EXE_LINKER_FLAGS="-static -static-libgcc -static-libstdc++" >/dev/null
       cmake --build "$WORK/src/build-$variant" --target whisper-cli -j"$(nproc)"
     done
