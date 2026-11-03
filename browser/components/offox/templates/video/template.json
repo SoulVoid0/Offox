@@ -1,8 +1,9 @@
 {
   "id": "video",
+  "version": 2,
   "name": "Video sharing",
   "icon": "▶️",
-  "description": "A YouTube-style site: upload videos with descriptions, a home page with every video, playlists, and a player that converts formats Firefox can't play.",
+  "description": "A YouTube-style site: upload videos with descriptions, a home page with every video, playlists, comments, automatic subtitles made offline from the speech, and a player that converts formats Firefox can't play.",
   "defaultTitle": "OffTube",
   "defaultDomain": "youtube.com",
   "shared": ["util.js", "ui.css"],

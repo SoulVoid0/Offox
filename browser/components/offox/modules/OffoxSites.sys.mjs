@@ -123,7 +123,95 @@ export class SiteRegistry {
     this.sites = sites;
     this.conflicts = conflicts;
     this.generation++;
+    if (!this._upgrading) {
+      this._upgrading = true;
+      try {
+        if (await this.upgradeSites()) {
+          await this.load(this.roots);
+        }
+      } finally {
+        this._upgrading = false;
+      }
+    }
     return this;
+  }
+
+  /**
+   * Brings websites made from an older version of a built-in template up to
+   * date (e.g. OffTube gaining comments and subtitles). Only the template's
+   * own pages, scripts and styles are replaced, never the site's content;
+   * a page that was changed by hand is first copied to
+   * .offox-backup/<date>/ inside the site folder. Returns the number of
+   * sites upgraded.
+   */
+  async upgradeSites() {
+    let templates;
+    try {
+      templates = await this.templates();
+    } catch (e) {
+      return 0;
+    }
+    let upgraded = 0;
+    for (let site of this.list()) {
+      let tpl = templates.find(t => t.id === site.template);
+      let version = Number(tpl?.version) || 1;
+      if (!tpl || site.templateVersion >= version) {
+        continue;
+      }
+      try {
+        await this._upgradeSite(site, tpl, version);
+        upgraded++;
+        this.log(`Upgraded ${site.domain} to version ${version} of the ${tpl.id} template`);
+      } catch (e) {
+        this.log(`Could not upgrade ${site.domain}: ${e}`);
+      }
+    }
+    return upgraded;
+  }
+
+  async _upgradeSite(site, tpl, version) {
+    let manifestPath = this.fs.join(site.dir, SITE_MANIFEST);
+    let manifest = (await this._readJSON(manifestPath)) || {};
+    let replacements = {
+      "{{SITE_TITLE}}": site.title,
+      "{{SITE_DOMAIN}}": site.domain,
+      "{{SITE_DESCRIPTION}}": site.description,
+      "{{CREATED}}": site.created || new Date().toISOString(),
+    };
+    let stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    let files = [
+      ...tpl.files.map(f => [`templates/${tpl.id}/${f}`, f]),
+      ...(tpl.shared || []).map(f => [`templates/_shared/${f}`, `assets/${f}`]),
+    ];
+    for (let [from, to] of files) {
+      let bytes = await this.assets.read(from);
+      if (TEXT_TEMPLATE_FILE.test(to)) {
+        bytes = utf8Encode(applyReplacements(utf8Decode(bytes), to, replacements));
+      }
+      let parts = to.split("/");
+      let target = this.fs.join(site.dir, ...parts);
+      let stat = await this.fs.stat(target);
+      if (stat && stat.type === "file") {
+        let current = await this.fs.read(target);
+        if (sameBytes(current, bytes)) {
+          continue;
+        }
+        let backup = this.fs.join(site.dir, ".offox-backup", stamp, ...parts);
+        await this.fs.mkdir(this.fs.join(site.dir, ".offox-backup", stamp, ...parts.slice(0, -1)));
+        await this.fs.write(backup, current);
+      } else if (parts.length > 1) {
+        await this.fs.mkdir(this.fs.join(site.dir, ...parts.slice(0, -1)));
+      }
+      await this.fs.write(target, bytes);
+    }
+    for (let emptyDir of tpl.directories || []) {
+      await this.fs.mkdir(this.fs.join(site.dir, ...emptyDir.split("/")));
+    }
+    manifest.templateVersion = version;
+    if (Array.isArray(tpl.searchRules)) {
+      manifest.searchRules = tpl.searchRules;
+    }
+    await this.fs.write(manifestPath, utf8Encode(JSON.stringify(manifest, null, 2)));
   }
 
   async _scanRoot(root) {
@@ -152,6 +240,7 @@ export class SiteRegistry {
         title: String(manifest.title || domain),
         description: String(manifest.description || ""),
         template: String(manifest.template || "custom"),
+        templateVersion: Number(manifest.templateVersion) || 1,
         created: manifest.created || null,
         searchRules: Array.isArray(manifest.searchRules) ? manifest.searchRules : [],
         root,
@@ -291,11 +380,7 @@ export class SiteRegistry {
     let copy = async (from, to) => {
       let bytes = await this.assets.read(from);
       if (TEXT_TEMPLATE_FILE.test(to)) {
-        let text = utf8Decode(bytes);
-        for (let [key, value] of Object.entries(replacements)) {
-          text = text.split(key).join(htmlSafe(to, value));
-        }
-        bytes = utf8Encode(text);
+        bytes = utf8Encode(applyReplacements(utf8Decode(bytes), to, replacements));
       }
       let parts = to.split("/");
       if (parts.length > 1) {
@@ -320,6 +405,7 @@ export class SiteRegistry {
       title,
       description,
       template: tpl.id,
+      templateVersion: Number(tpl.version) || 1,
       created: new Date().toISOString(),
       searchRules: tpl.searchRules || [],
     };
@@ -372,6 +458,25 @@ export class SiteRegistry {
     await this.fs.remove(site.dir, { recursive: true });
     await this.load(this.roots);
   }
+}
+
+function applyReplacements(text, fileName, replacements) {
+  for (let [key, value] of Object.entries(replacements)) {
+    text = text.split(key).join(htmlSafe(fileName, value));
+  }
+  return text;
+}
+
+function sameBytes(a, b) {
+  if (a.length !== b.length) {
+    return false;
+  }
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) {
+      return false;
+    }
+  }
+  return true;
 }
 
 function htmlSafe(fileName, value) {

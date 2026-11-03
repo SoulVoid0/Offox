@@ -8,9 +8,13 @@ Saves screenshots for a person to look at.
     python3 offox/tests/smoke-browser.py <path to offox or offox.exe> <output folder>
 
 geckodriver must be on the PATH (https://github.com/mozilla/geckodriver).
+With OFFOX_SPEECH_SAMPLE set to a 16 kHz WAV of English speech (whisper.cpp's
+samples/jfk.wav), it also makes automatic subtitles with the bundled
+whisper.cpp.
 """
 import json
 import os
+import shutil
 import sys
 import tempfile
 import time
@@ -98,6 +102,33 @@ try:
     wait(lambda: driver.title != "")
     check("OffTube" in driver.title, f"youtube.com is OffTube (title {driver.title!r})")
     shot("03-offtube")
+    # OffTube: comments and automatic subtitles.
+    offtube = os.path.join(storage, "OffTube")
+    check(os.path.exists(os.path.join(offtube, "assets", "comments.js")) and
+          os.path.exists(os.path.join(offtube, "assets", "subtitles.js")), "OffTube has comments and subtitles")
+    speech = driver.execute_async_script("""
+      let done = arguments[arguments.length - 1];
+      Offox.media.speech().then(done, e => done({ error: String(e) }));""")
+    print("  speech recognition:", json.dumps(speech))
+    check(speech.get("available"), "whisper.cpp and a speech model come with Offox")
+    sample = os.environ.get("OFFOX_SPEECH_SAMPLE")
+    if sample and speech.get("available"):
+        os.makedirs(os.path.join(offtube, "videos", "jfk"), exist_ok=True)
+        shutil.copy(sample, os.path.join(offtube, "videos", "jfk", "audio.wav"))
+        driver.set_script_timeout(600)
+        job = driver.execute_async_script("""
+          let done = arguments[arguments.length - 1];
+          Offox.media.subtitles("videos/jfk/audio.wav", "videos/jfk/subtitles", { language: "auto" })
+            .then(done, e => done({ state: "failed", error: String(e.message || e) }));""")
+        print("  subtitle job:", json.dumps({k: job.get(k) for k in ("state", "outputName", "language", "program", "error")}))
+        vtt_path = os.path.join(offtube, "videos", "jfk", "subtitles", "en.auto.vtt")
+        vtt = open(vtt_path, encoding="utf-8").read() if os.path.exists(vtt_path) else ""
+        print("  " + vtt.replace("\n", "\n  ")[:600])
+        check(job.get("state") == "done" and job.get("language") == "en", "automatic subtitles detect English")
+        check("country" in vtt.lower(), "the subtitles contain the spoken words")
+        leftovers = [f for f in os.listdir(os.path.join(offtube, "videos", "jfk", "subtitles")) if f.startswith(".")]
+        check(not leftovers, f"no temporary files are left ({leftovers})")
+
     driver.get("https://www.reddit.com/")
     wait(lambda: driver.title != "")
     check(driver.current_url.startswith("https://reddit.com/"), f"www.reddit.com goes to reddit.com ({driver.current_url})")

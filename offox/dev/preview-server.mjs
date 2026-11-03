@@ -43,7 +43,7 @@ export async function createOffox(roots, { init = true } = {}) {
     assets,
     registry,
     fireline,
-    media: nodeMedia(),
+    media: nodeMedia(undefined, WHISPER_CHOICE),
     maxChunk: 8 * 1024 * 1024,
     log,
   });
@@ -53,6 +53,9 @@ export async function createOffox(roots, { init = true } = {}) {
 // The about:offox settings page, served at https://settings.offox/ by the
 // preview server. Same method names as OffoxService in the browser.
 export const SETTINGS_HOST = "settings.offox";
+
+// Speech recognition program and model chosen on the settings page.
+const WHISPER_CHOICE = { program: "", model: "" };
 
 function settingsBackend(registry, fireline) {
   let ffmpegPath = process.env.OFFOX_FFMPEG || "";
@@ -78,6 +81,7 @@ function settingsBackend(registry, fireline) {
       await reload(registry.roots);
       let media = nodeMedia(ffmpegPath || undefined);
       let info = await media.info();
+      let speech = await nodeMedia(undefined, WHISPER_CHOICE).speechInfo();
       return {
         portable: false,
         devMode: true,
@@ -91,6 +95,9 @@ function settingsBackend(registry, fireline) {
         conflicts: registry.conflicts,
         ffmpeg: info.path,
         ffmpegChosen: ffmpegPath,
+        speech,
+        whisperChosen: WHISPER_CHOICE.program,
+        whisperModelChosen: WHISPER_CHOICE.model,
         network: { proxyLocked: false, proxy: "preview server", trrMode: 5, webrtc: false, updates: false, telemetry: false },
         error: null,
       };
@@ -132,6 +139,12 @@ function settingsBackend(registry, fireline) {
     },
     async setFFmpegPath(p) {
       ffmpegPath = p;
+    },
+    async setWhisperPath(p) {
+      WHISPER_CHOICE.program = p || "";
+    },
+    async setWhisperModel(p) {
+      WHISPER_CHOICE.model = p || "";
     },
     async reveal() {},
   };

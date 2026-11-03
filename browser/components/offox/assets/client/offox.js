@@ -125,18 +125,57 @@
       /** Converts and waits; resolves with the finished job. */
       async convertAndWait(path, { output, onProgress } = {}) {
         let job = await Offox.media.convert(path, { output });
+        return Offox.media.wait(job, { onProgress });
+      },
+
+      /** Automatic subtitles: is whisper.cpp with a model installed? */
+      speech: () => call("media/speech"),
+
+      /**
+       * Makes subtitles from the speech in a video, offline, and writes
+       * <dir>/<language>.auto.vtt. Options: language ("auto" or a code),
+       * translate (into English), audio (a 16 kHz WAV in the site folder,
+       * for when FFmpeg is not installed), onProgress.
+       * Resolves with the finished job ({outputName, language}).
+       */
+      async subtitles(path, dir, { language = "auto", translate = false, audio, removeAudio, onProgress } = {}) {
+        let params = { path, dir, language, translate: translate ? "1" : "0" };
+        if (audio) {
+          params.audio = audio;
+          params.removeAudio = removeAudio ? "1" : "0";
+        }
+        let job = await call("media/subtitles", params, { method: "POST" });
+        if (job.state === "failed") {
+          let err = new Error(job.error);
+          err.code = job.code;
+          throw err;
+        }
+        return Offox.media.wait(job, { onProgress, interval: 1000 });
+      },
+
+      /** Text subtitle tracks stored inside a video file (needs FFmpeg). */
+      subtitleStreams: path => call("media/subtitle-streams", { path }),
+
+      /** Copies a video's embedded subtitle tracks into <dir> as .vtt files. */
+      async extractSubtitles(path, dir, { onProgress } = {}) {
+        let job = await call("media/extract-subtitles", { path, dir }, { method: "POST" });
+        return Offox.media.wait(job, { onProgress });
+      },
+
+      /** Waits for a background job to finish. */
+      async wait(job, { onProgress, interval = 700 } = {}) {
         if (job.state === "failed") {
           throw new Error(job.error);
         }
         for (;;) {
-          await new Promise(r => setTimeout(r, 700));
+          await new Promise(r => setTimeout(r, interval));
           job = await Offox.media.job(job.id);
           onProgress?.(job.progress || 0, job);
           if (job.state === "done") {
             return job;
           }
           if (job.state === "failed" || job.state === "unknown") {
-            throw new Error(job.error || "Conversion failed");
+            throw new Error(job.error || "The job failed");
           }
         }
       },

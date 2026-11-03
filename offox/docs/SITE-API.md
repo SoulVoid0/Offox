@@ -37,15 +37,22 @@ API. Requests from other sites are refused.
 | `Offox.media.convert(path, {output?})` | starts converting a video/audio file to a playable format and returns `{id, state}` |
 | `Offox.media.job(id)` | `{state: "probing"/"running"/"done"/"failed", progress, output, outputName, error}` |
 | `Offox.media.convertAndWait(path, {onProgress})` | both of the above, resolves when done |
+| `Offox.media.speech()` | `{available, program, model, modelName, models, ffmpeg}`: can automatic subtitles be made? |
+| `Offox.media.subtitles(path, dir, {language, translate, audio?, onProgress})` | makes subtitles from the speech in `path` with whisper.cpp, offline, and writes `<dir>/<lang>.auto.vtt` (`<dir>/en.translated.auto.vtt` with `translate`). Resolves with the finished job (`outputName`, `language`). Fails with `code: "needs-audio"` when FFmpeg is missing and `path` is not a WAV: then pass `audio`, a 16 kHz mono WAV the page made |
+| `Offox.media.subtitleStreams(path)` | subtitle tracks inside a video file: `[{stream, language, codec, text}]` (needs FFmpeg) |
+| `Offox.media.extractSubtitles(path, dir)` | copies the text subtitle tracks into `<dir>/<lang>.embedded.vtt`; resolves with `{files}` |
+| `Offox.media.wait(job, {onProgress})` | waits for any of these jobs |
 
 ## Raw HTTP
 
 The script is a thin wrapper around `https://<site>/__offox/api/<name>`:
 
 - `GET`: `info`, `stat?path=`, `list?path=`, `collect?path=&files=a,b`, `sites`,
-  `search?q=`, `media/info`, `media/job?id=`
+  `search?q=`, `media/info`, `media/job?id=`, `media/speech`, `media/subtitle-streams?path=`
 - `POST` or `PUT` (the body is the file content): `write?path=[&offset=n|&append]`,
-  `mkdir?path=`, `delete?path=`, `move?from=&to=`, `media/convert?path=[&output=]`
+  `mkdir?path=`, `delete?path=`, `move?from=&to=`, `media/convert?path=[&output=]`,
+  `media/subtitles?path=&dir=&language=&translate=0|1[&audio=&removeAudio=1]`,
+  `media/extract-subtitles?path=&dir=`
 
 Answers are JSON. Errors look like `{"error": "..."}` with a 4xx/5xx status.
 
