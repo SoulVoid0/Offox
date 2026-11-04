@@ -10,24 +10,111 @@
 </head>
 <body>
   <main id="main">
-    <div class="filters" id="categories"></div>
-    <div class="filters" id="platforms"></div>
-    <div class="grid" id="grid"></div>
+    <div class="home">
+      <aside class="sidebar">
+        <div class="side-group">
+          <h4>Your store</h4>
+          <a class="side-link" href="edit.html">＋ Add software</a>
+          <div class="side-stat" id="stats"></div>
+        </div>
+        <div class="side-group">
+          <h4>Browse categories</h4>
+          <div class="filters" id="categories"></div>
+        </div>
+        <div class="side-group">
+          <h4>Platforms</h4>
+          <div class="filters" id="platforms"></div>
+        </div>
+      </aside>
+      <div class="home-main">
+        <section class="featured" id="featured" hidden>
+          <h2 class="home-head">Featured &amp; recommended</h2>
+          <div class="carousel" id="carousel">
+            <div class="slides" id="slides"></div>
+            <button class="arrow prev" id="prev" aria-label="Previous">‹</button>
+            <button class="arrow next" id="next" aria-label="Next">›</button>
+          </div>
+          <div class="dots" id="dots"></div>
+        </section>
+        <section class="browse" id="browse">
+          <div class="browse-head">
+            <h2 class="home-head" id="browse-title">Browse</h2>
+            <div class="tabs" id="tabs"></div>
+          </div>
+          <div class="grid" id="grid"></div>
+        </section>
+      </div>
+    </div>
   </main>
   <script src="/__offox/offox.js"></script>
   <script src="assets/util.js"></script>
   <script src="assets/store.js"></script>
   <script>
     (async () => {
-      Store.layout();
+      Store.layout(param("tab") === "new" ? "new" : "store");
       let apps = await Store.apps();
-      let q = (param("q") || "").toLowerCase();
-      let category = "All", platform = "All";
+      let qRaw = param("q") || "", q = qRaw.toLowerCase();
+      let category = CATEGORIES.includes(param("category")) ? param("category") : "All";
+      let platform = PLATFORMS.includes(param("platform")) ? param("platform") : "All";
+      let time = a => new Date(a.updated || a.created || 0).getTime() || 0;
+      let TABS = {
+        new: { label: "New & Noteworthy", sort: (a, b) => (new Date(b.created || 0) - new Date(a.created || 0)) || a.name.localeCompare(b.name) },
+        updated: { label: "Recently Updated", sort: (a, b) => time(b) - time(a) || a.name.localeCompare(b.name) },
+        az: { label: "All A–Z", sort: (a, b) => a.name.localeCompare(b.name) },
+      };
+      let tab = TABS[param("tab")] ? param("tab") : "new";
+      $("#stats").textContent = apps.length ? `${plural(apps.length, "program")} · ${plural(apps.reduce((n, a) => n + a.files.length, 0), "file")}` : "No software yet";
+
+      // Featured carousel: apps with screenshots first, then the most recently changed.
+      let featured = [...apps].sort((a, b) => (b.screenshots.length ? 1 : 0) - (a.screenshots.length ? 1 : 0) || time(b) - time(a)).slice(0, 6);
+      let slide = 0, timer = null;
+      let show = i => {
+        slide = (i + featured.length) % featured.length;
+        $$("#slides .slide").forEach((s, n) => s.classList.toggle("active", n === slide));
+        $$("#dots button").forEach((d, n) => d.classList.toggle("active", n === slide));
+      };
+      let autoplay = () => { clearInterval(timer); if (featured.length > 1) timer = setInterval(() => show(slide + 1), 7000); };
+      for (let [i, app] of featured.entries()) {
+        let href = `app.html?id=${encodeURIComponent(app.id)}`;
+        let main = h("a", { class: "slide-main", href }, Store.capsule(app, { cls: "slide-img" }));
+        let swap = shot => main.replaceChildren(Store.capsule(app, { shot, cls: "slide-img" }));
+        $("#slides").append(h("div", { class: "slide" },
+          main,
+          h("div", { class: "slide-info" },
+            h("a", { class: "slide-title", href }, app.name),
+            app.screenshots.length > 1
+              ? h("div", { class: "slide-shots" }, app.screenshots.slice(0, 4).map(s => h("img", { src: Store.shotUrl(app, s), alt: "", onmouseenter: () => swap(s), onmouseleave: () => swap(app.screenshots[0]) })))
+              : h("div", { class: "slide-icon" }, Store.iconNode(app), h("div", {}, app.publisher || "", h("small", {}, app.category || ""))),
+            h("div", { class: "slide-reason" }, h("b", {}, app.updated && app.updated !== app.created ? "Recently updated" : "New in your store"), app.updated ? formatDate(app.updated) : ""),
+            Store.tags(app),
+            h("div", { class: "slide-foot" }, Store.platformIcons(app), Store.priceBlock(app)))));
+        $("#dots").append(h("button", { "aria-label": `Show ${app.name}`, onclick: () => { show(i); autoplay(); } }));
+      }
+      $("#prev").addEventListener("click", () => { show(slide - 1); autoplay(); });
+      $("#next").addEventListener("click", () => { show(slide + 1); autoplay(); });
+      $("#carousel").addEventListener("mouseenter", () => clearInterval(timer));
+      $("#carousel").addEventListener("mouseleave", autoplay);
+      $("#prev").hidden = $("#next").hidden = featured.length < 2;
+      if (featured.length) { show(0); autoplay(); }
+
+      let url = () => {
+        let p = new URLSearchParams();
+        if (qRaw) p.set("q", qRaw);
+        if (category !== "All") p.set("category", category);
+        if (platform !== "All") p.set("platform", platform);
+        if (tab !== "new") p.set("tab", tab);
+        history.replaceState(null, "", "./" + (p.size ? "?" + p : "") + location.hash);
+      };
       let render = () => {
+        let filtering = q || category !== "All" || platform !== "All";
+        $("#featured").hidden = !featured.length || !!filtering;
         let list = apps.filter(a =>
           (category === "All" || a.category === category) &&
           (platform === "All" || a.platforms.includes(platform) || a.platforms.includes("Any")) &&
-          (!q || [a.name, a.publisher, a.description, a.category].join(" ").toLowerCase().includes(q)));
+          (!q || [a.name, a.publisher, a.description, a.category].join(" ").toLowerCase().includes(q))).sort(TABS[tab].sort);
+        $("#browse-title").textContent = q ? `Results for “${qRaw}” (${list.length})`
+          : filtering ? [category !== "All" && category, platform !== "All" && platform].filter(Boolean).join(" · ") + ` (${list.length})`
+          : "Browse the store";
         $("#grid").replaceChildren(...list.map(Store.card));
         if (!list.length) $("#grid").append(h("div", { class: "empty", style: { gridColumn: "1/-1" } },
           h("h2", {}, apps.length ? "No software matches" : "Your store is empty"),
@@ -35,10 +122,17 @@
           h("a", { class: "btn primary", href: "edit.html" }, "＋ Add software")));
         $$("#categories .filter").forEach(b => b.classList.toggle("active", b.dataset.v === category));
         $$("#platforms .filter").forEach(b => b.classList.toggle("active", b.dataset.v === platform));
+        $$("#tabs .tab").forEach(b => b.classList.toggle("active", b.dataset.v === tab));
+        url();
       };
-      let used = new Set(apps.map(a => a.category).filter(Boolean));
+      for (let [k, t] of Object.entries(TABS)) {
+        $("#tabs").append(h("button", { class: "tab", "data-v": k, onclick: () => { tab = k; render(); } }, t.label));
+      }
+      let used = new Set([...apps.map(a => a.category), category].filter(Boolean));
+      let count = c => apps.filter(a => a.category === c).length;
       for (let c of ["All", ...CATEGORIES.filter(c => used.has(c))]) {
-        $("#categories").append(h("button", { class: "filter", "data-v": c, onclick: () => { category = c; render(); } }, c === "All" ? "All categories" : `${CATEGORY_ICON[c] || ""} ${c}`));
+        $("#categories").append(h("button", { class: "filter", "data-v": c, onclick: () => { category = c; render(); } },
+          c === "All" ? "All categories" : `${CATEGORY_ICON[c] || ""} ${c}`, c === "All" ? null : h("span", { class: "count" }, count(c))));
       }
       for (let p of ["All", ...PLATFORMS.filter(p => p !== "Any")]) {
         $("#platforms").append(h("button", { class: "filter", "data-v": p, onclick: () => { platform = p; render(); } }, p === "All" ? "All platforms" : p));
