@@ -27,37 +27,75 @@
       document.title = `${app.name} – {{SITE_TITLE}}`;
       let entries = await Offox.list(`apps/${app.id}/files`);
       let sizes = Object.fromEntries(entries.map(e => [e.name, e.size]));
-      let fact = (label, value) => value ? h("div", {}, h("b", {}, value), label) : null;
-      main.append(h("div", { class: "hero" },
-        Store.iconNode(app),
-        h("div", { style: { flex: 1, minWidth: "240px" } },
-          h("h1", {}, app.name),
-          h("div", { class: "meta" }, app.publisher || ""),
+      let fileUrl = f => Offox.url(`apps/${app.id}/files/${f.name}`) + "?download";
+      let description = Markdown.render(app.description || "No description.").html;
+      let summary = (h("div", { html: description }).textContent || "").trim().replace(/\s+/g, " ");
+      if (summary.length > 260) summary = summary.slice(0, 257).trimEnd() + "…";
+      let row = (label, value) => value ? h("div", { class: "fact" }, h("span", { class: "label" }, label), h("span", { class: "value" }, value)) : null;
+
+      // Title and breadcrumbs
+      main.append(h("div", { class: "app-head" },
+        h("div", { class: "crumbs" },
+          h("a", { href: "./" }, "All Software"), " › ",
+          app.category ? [h("a", { href: `./?category=${encodeURIComponent(app.category)}#browse` }, app.category), " › "] : null,
+          h("span", {}, app.name)),
+        h("h1", { class: "app-name" }, app.name)));
+
+      // Media viewer (screenshots) and the summary column
+      let viewer = h("div", { class: "media-main" });
+      let select = s => {
+        viewer.replaceChildren(s
+          ? h("a", { href: Store.shotUrl(app, s), target: "_blank" }, h("img", { src: Store.shotUrl(app, s), alt: "" }))
+          : Store.capsule(app, { cls: "media-fallback" }));
+        $$(".media-strip img").forEach(img => img.classList.toggle("active", img.dataset.name === s));
+      };
+      main.append(h("div", { class: "glance" },
+        h("div", { class: "media" },
+          viewer,
+          app.screenshots.length ? h("div", { class: "shots media-strip" },
+            app.screenshots.map(s => h("img", { src: Store.shotUrl(app, s), alt: "", "data-name": s, onclick: () => select(s) }))) : null),
+        h("div", { class: "glance-side" },
+          h("div", { class: "glance-capsule", style: { background: Store.tint(app) } }, Store.iconNode(app), h("span", {}, app.name)),
+          h("p", { class: "summary" }, summary),
           h("div", { class: "facts" },
-            fact("Version", app.version), fact("Category", app.category), fact("Platforms", app.platforms.join(", ")),
-            fact("License", app.license), fact("Added", formatDate(app.created)), fact("Updated", app.updated && formatDate(app.updated))),
-          h("div", { style: { display: "flex", gap: "8px", flexWrap: "wrap" } },
-            app.files[0] ? h("a", { class: "btn primary", href: Offox.url(`apps/${app.id}/files/${app.files[0].name}`) + "?download" }, "⬇ Download") : null,
-            h("a", { class: "btn", href: `edit.html?id=${encodeURIComponent(app.id)}` }, "✎ Edit"),
-            h("button", { class: "btn danger", onclick: async () => {
-              if (!confirm(`Remove ${app.name} and all its files from the store?`)) return;
-              await Offox.remove(`apps/${app.id}`);
-              location.href = "./";
-            } }, "🗑 Remove")))));
+            row("Version", app.version), row("Publisher", app.publisher), row("Added", formatDate(app.created)), row("Updated", app.updated && formatDate(app.updated))),
+          h("div", { class: "glance-tags" }, h("div", { class: "label" }, "Tags for this software:"), Store.tags(app, 8)))));
+      select(app.screenshots[0]);
+
+      // Download boxes, description and the info sidebar
+      let left = h("div", { class: "app-left" });
+      let right = h("aside", { class: "app-right" });
+      main.append(h("div", { class: "app-body" }, left, right));
+      left.append(h("div", { class: "purchase" },
+        h("h2", {}, `Download ${app.name}`),
+        Store.platformIcons(app),
+        h("div", { class: "purchase-action" },
+          h("div", { class: "price" }, app.license || (app.version ? "v" + app.version : "Offline")),
+          app.files[0] ? h("a", { class: "btn green", href: fileUrl(app.files[0]) }, "⬇ Download") : h("a", { class: "btn", href: `edit.html?id=${encodeURIComponent(app.id)}` }, "＋ Add a file"))));
       if (app.files.length) {
-        main.append(h("div", { class: "section" }, h("h2", {}, "Downloads"), h("div", { class: "downloads" },
+        left.append(h("div", { class: "section" }, h("h2", {}, "Downloads"), h("div", { class: "downloads" },
           app.files.map(f => h("div", { class: "download" },
-            h("span", { style: { fontSize: "24px" } }, "📦"),
+            h("span", { class: "file-icon" }, "📦"),
             h("div", { class: "name" }, f.name, h("small", {}, [f.platform, formatSize(sizes[f.name]), f.note].filter(Boolean).join(" · "))),
-            h("a", { class: "btn", href: Offox.url(`apps/${app.id}/files/${f.name}`) + "?download" }, "Download"))))));
+            h("a", { class: "btn green", href: fileUrl(f) }, "Download"))))));
       }
-      if (app.screenshots?.length) {
-        main.append(h("div", { class: "section" }, h("h2", {}, "Screenshots"), h("div", { class: "shots" },
-          app.screenshots.map(s => h("a", { href: Offox.url(`apps/${app.id}/screenshots/${s}`), target: "_blank" }, h("img", { src: Offox.url(`apps/${app.id}/screenshots/${s}`), alt: "" }))))));
-      }
-      main.append(h("div", { class: "section" }, h("h2", {}, "About this software"),
-        h("div", { class: "content", html: Markdown.render(app.description || "No description.").html }),
+      left.append(h("div", { class: "section" }, h("h2", {}, "About this software"),
+        h("div", { class: "content", html: description }),
         app.homepage ? h("p", {}, "Website: ", h("a", { href: app.homepage }, app.homepage)) : null));
+
+      right.append(
+        h("div", { class: "side-box" },
+          row("Category", app.category), row("Platforms", app.platforms.join(", ")), row("License", app.license),
+          row("Files", app.files.length ? plural(app.files.length, "file") : "None"),
+          app.homepage ? row("Website", h("a", { href: app.homepage }, "Visit")) : null),
+        h("div", { class: "side-box manage" },
+          h("div", { class: "label" }, "Manage"),
+          h("a", { class: "btn", href: `edit.html?id=${encodeURIComponent(app.id)}` }, "✎ Edit"),
+          h("button", { class: "btn danger", onclick: async () => {
+            if (!confirm(`Remove ${app.name} and all its files from the store?`)) return;
+            await Offox.remove(`apps/${app.id}`);
+            location.href = "./";
+          } }, "🗑 Remove")));
     })();
   </script>
 </body>

@@ -10,7 +10,8 @@
 </head>
 <body>
   <main id="main">
-    <h1 id="heading">Add software</h1>
+    <div class="crumbs"><a href="./">All Software</a> › Manage</div>
+    <h1 class="app-name" id="heading">Add software</h1>
     <form class="edit section" id="form">
       <label>Name <input type="text" name="name" required></label>
       <label>Version <input type="text" name="version" placeholder="1.0.0"></label>
@@ -33,7 +34,7 @@
   <script src="assets/store.js"></script>
   <script>
     (async () => {
-      Store.layout();
+      Store.layout("add");
       let form = $("#form");
       for (let c of CATEGORIES) $("#category").append(h("option", { value: c }, c));
       for (let p of PLATFORMS) $("#platforms").append(h("label", {}, h("input", { type: "checkbox", name: "platforms", value: p }), " " + p));

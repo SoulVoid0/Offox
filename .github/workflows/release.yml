@@ -220,7 +220,7 @@ jobs:
           cat > notes.md <<NOTES
           Offox $version: a Firefox $firefox ESR based browser that never goes on the internet.
 
-          **New in this release:** OffTube (youtube.com) has **comments** (post, reply, like, pin, sort) and **automatic subtitles** made from the speech on your computer, in about 100 languages, with translation into English. Pick the language under **CC** on a video. Uploading a video together with the files yt-dlp saved next to it adds its YouTube subtitles, comments, title and description. Your existing OffTube site is updated automatically.
+          **New in this release:** the **Software Store** (software.store) has a new dark game-store look: a featured carousel, capsule tiles with tags, platforms, version and licence, a category and platform sidebar, a Categories menu, sort tabs (New & Noteworthy, Recently Updated, A–Z) and a new app page with a screenshot viewer and download box. Your existing Software Store is updated automatically; your apps and files are kept. Also included from 0.3.0: OffTube **comments** and **automatic subtitles** made on your computer.
 
           **Windows (64-bit, Windows 10/11):** download \`Offox-$version-Setup.exe\` and run it. It asks whether you want a **normal install** (Start menu, uninstaller, settings in your user profile) or a **portable install** (everything in one folder, e.g. on a USB drive). Windows SmartScreen may warn because the installer is not signed: click *More info*, then *Run anyway*.
 
