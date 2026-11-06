@@ -124,6 +124,7 @@ async function refresh() {
   renderSites();
   renderCreateRoots();
   renderVideo();
+  renderSubtitles();
   renderOffline();
 }
 
@@ -449,6 +450,68 @@ $("ffmpeg-choose").addEventListener("click", async () => {
   let path = await backend.pickFile("Choose the ffmpeg program");
   if (path) {
     $("ffmpeg-path").value = path;
+  }
+});
+
+// ---------------------------------------------------------------- subtitles
+
+function renderSubtitles() {
+  let sp = state.speech || { available: false, models: [] };
+  let box = $("whisper-status");
+  box.replaceChildren(
+    h(
+      "div",
+      {},
+      sp.program
+        ? [h("span", { class: "ok" }, "✓ Speech recognition program: "), h("code", {}, sp.program)]
+        : [h("span", { class: "bad" }, "whisper.cpp was not found. "), "Choose its whisper-cli program below, or reinstall Offox."]
+    ),
+    h(
+      "div",
+      {},
+      sp.model
+        ? [h("span", { class: "ok" }, "✓ Speech model: "), h("code", {}, sp.model)]
+        : [h("span", { class: "bad" }, "No speech model was found. "), "Download a ggml model (for example ggml-base.bin or ggml-small.bin from the whisper.cpp project) on another computer and choose it below."]
+    ),
+    h("div", {}, sp.ffmpeg ? "FFmpeg is used to read the sound of every video format." : "Without FFmpeg, Offox reads the sound of the video in the page (formats Firefox can play).")
+  );
+  $("whisper-path").value = state.whisperChosen || "";
+  $("whisper-model").value = state.whisperModelChosen || "";
+  let list = $("whisper-model-list");
+  list.replaceChildren(
+    h("option", { value: "" }, sp.models.length ? "Installed models…" : "No models installed"),
+    ...sp.models.map(m => h("option", { value: m }, m.split(/[\\/]/).pop()))
+  );
+  list.hidden = !sp.models.length;
+}
+
+$("whisper-model-list").addEventListener("change", () => {
+  if ($("whisper-model-list").value) {
+    $("whisper-model").value = $("whisper-model-list").value;
+  }
+});
+$("whisper-form").addEventListener("submit", async event => {
+  event.preventDefault();
+  await run(() => backend.call("setWhisperPath", $("whisper-path").value.trim()));
+  await refresh();
+  toast("Saved.");
+});
+$("whisper-model-form").addEventListener("submit", async event => {
+  event.preventDefault();
+  await run(() => backend.call("setWhisperModel", $("whisper-model").value.trim()));
+  await refresh();
+  toast("Saved.");
+});
+$("whisper-choose").addEventListener("click", async () => {
+  let path = await backend.pickFile("Choose the whisper-cli program");
+  if (path) {
+    $("whisper-path").value = path;
+  }
+});
+$("whisper-model-choose").addEventListener("click", async () => {
+  let path = await backend.pickFile("Choose a whisper.cpp speech model (ggml-*.bin)");
+  if (path) {
+    $("whisper-model").value = path;
   }
 });
 

@@ -8,6 +8,11 @@ name: Build and release Offox
 
 on:
   workflow_dispatch:
+    inputs:
+      replaces:
+        description: "Tag of an earlier release to delete once this one is published (optional)"
+        required: false
+        default: ""
   push:
     branches: [release-build]
     tags: ["v*"]
@@ -20,7 +25,12 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # whisper.cpp and a speech model for OffTube's automatic subtitles.
+  whisper:
+    uses: ./.github/workflows/whisper.yml
+
   linux-1:
+    needs: whisper
     uses: ./.github/workflows/build-part.yml
     with: { platform: linux, part: 1 }
   linux-2:
@@ -35,6 +45,7 @@ jobs:
     with: { platform: linux, part: 3 }
 
   windows-1:
+    needs: whisper
     uses: ./.github/workflows/build-part.yml
     with: { platform: windows, part: 1 }
   windows-2:
@@ -63,6 +74,8 @@ jobs:
           sparse-checkout: offox
       - uses: actions/download-artifact@v4
         with: { name: offox-linux, path: dist }
+      - uses: actions/download-artifact@v4
+        with: { name: speech-sample, path: sample }
       - name: Install test tools
         run: |
           sudo apt-get update -q
@@ -80,6 +93,8 @@ jobs:
           APPIMAGE_EXTRACT_AND_RUN=1 timeout 180 dist/*.AppImage --headless --screenshot "$PWD/shots/appimage-fireline.png" https://fireline.offox/
           test -s shots/appimage-fireline.png
       - name: Browser checks
+        env:
+          OFFOX_SPEECH_SAMPLE: ${{ github.workspace }}/sample/jfk.wav
         run: python3 offox/tests/smoke-browser.py dist/squashfs-root/usr/lib/offox/offox shots
       - name: Run on other Linux distributions
         run: |
@@ -122,6 +137,8 @@ jobs:
           sparse-checkout: offox
       - uses: actions/download-artifact@v4
         with: { name: offox-windows, path: dist }
+      - uses: actions/download-artifact@v4
+        with: { name: speech-sample, path: sample }
       - name: Install test tools
         shell: pwsh
         run: |
@@ -139,8 +156,22 @@ jobs:
           if (-not (Test-Path "$env:LOCALAPPDATA\Programs\Offox\Uninstall Offox.exe")) { throw "no uninstaller" }
           if (-not (Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Offox.lnk")) { throw "no Start menu shortcut" }
           "OFFOX_EXE=$exe" | Out-File -Append $env:GITHUB_ENV
+      - name: Speech recognition runs
+        shell: pwsh
+        run: |
+          $w = "$env:LOCALAPPDATA\Programs\Offox\whisper"
+          if (-not (Test-Path "$w\whisper-cli.exe")) { throw "whisper-cli.exe was not installed" }
+          $model = (Get-ChildItem "$w\models\ggml-*.bin")[0].FullName
+          foreach ($exe in "whisper-cli.exe", "whisper-cli-compat.exe") {
+            & "$w\$exe" -m $model -f sample\jfk.wav -l auto -ovtt -of "$env:RUNNER_TEMP\jfk" -pp
+            if ($LASTEXITCODE -ne 0) { throw "$exe failed with $LASTEXITCODE" }
+            Get-Content "$env:RUNNER_TEMP\jfk.vtt"
+            if (-not (Select-String -Path "$env:RUNNER_TEMP\jfk.vtt" -Pattern "country" -Quiet)) { throw "$exe did not transcribe the sample" }
+          }
       - name: Browser checks
         shell: pwsh
+        env:
+          OFFOX_SPEECH_SAMPLE: ${{ github.workspace }}\sample\jfk.wav
         run: python offox\tests\smoke-browser.py $env:OFFOX_EXE shots
       - name: Portable install
         shell: pwsh
@@ -179,12 +210,17 @@ jobs:
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
+          REPLACES: ${{ inputs.replaces }}
         run: |
-          version=$(sed -E 's/^FIREFOX_([0-9]+)_([0-9]+)_([0-9]+).*/\1.\2.\3/' offox/fork/FIREFOX_VERSION)
+          firefox=$(sed -E 's/^FIREFOX_([0-9]+)_([0-9]+)_([0-9]+).*/\1.\2.\3/' offox/fork/FIREFOX_VERSION)
+          # The Offox version names the release and its files (falls back to the Firefox version).
+          version=$(cat offox/fork/OFFOX_VERSION 2>/dev/null || echo "$firefox")
           tag="v$version"
           ls -la dist
           cat > notes.md <<NOTES
-          Offox $version: a Firefox $version ESR based browser that never goes on the internet.
+          Offox $version: a Firefox $firefox ESR based browser that never goes on the internet.
+
+          **New in this release:** OffTube (youtube.com) has **comments** (post, reply, like, pin, sort) and **automatic subtitles** made from the speech on your computer, in about 100 languages, with translation into English. Pick the language under **CC** on a video. Uploading a video together with the files yt-dlp saved next to it adds its YouTube subtitles, comments, title and description. Your existing OffTube site is updated automatically.
 
           **Windows (64-bit, Windows 10/11):** download \`Offox-$version-Setup.exe\` and run it. It asks whether you want a **normal install** (Start menu, uninstaller, settings in your user profile) or a **portable install** (everything in one folder, e.g. on a USB drive). Windows SmartScreen may warn because the installer is not signed: click *More info*, then *Run anyway*.
 
@@ -205,5 +241,9 @@ jobs:
             gh release edit "$tag" --notes-file notes.md --title "Offox $version"
           else
             gh release create "$tag" dist/* --target "$GITHUB_SHA" --title "Offox $version" --notes-file notes.md
+          fi
+          # A release this one replaces (dispatch input), e.g. after a rename.
+          if [ -n "${REPLACES:-}" ] && [ "$REPLACES" != "$tag" ]; then
+            gh release delete "$REPLACES" --cleanup-tag --yes || true
           fi
           echo "https://github.com/${GITHUB_REPOSITORY}/releases/tag/$tag" >> "$GITHUB_STEP_SUMMARY"

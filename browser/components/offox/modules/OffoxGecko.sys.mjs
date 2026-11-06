@@ -8,7 +8,7 @@
 // Subprocess.
 
 import { AppConstants } from "resource://gre/modules/AppConstants.sys.mjs";
-import { MediaConverter } from "resource://offox/modules/OffoxMedia.sys.mjs";
+import { MediaConverter, sortModels } from "resource://offox/modules/OffoxMedia.sys.mjs";
 
 const lazy = {};
 ChromeUtils.defineESModuleGetters(lazy, {
@@ -154,6 +154,82 @@ export async function findFFmpeg() {
   }
 }
 
+/**
+ * Finds whisper.cpp (for automatic subtitles) and a speech model.
+ * Programs: the one chosen in settings, whisper/whisper-cli next to the
+ * browser (the installers bundle it), then the PATH. Models: the one chosen
+ * in settings, else the best ggml-*.bin in whisper/models next to the
+ * browser, the profile's whisper-models folder or the usual cache folders.
+ */
+export async function findWhisper() {
+  let ext = IS_WINDOWS ? ".exe" : "";
+  let chosen = Services.prefs.getStringPref("offox.whisper.path", "");
+  let bundled = PathUtils.join(appDir(), "whisper");
+  let candidates = [
+    chosen,
+    PathUtils.join(bundled, "whisper-cli" + ext),
+    // Built without AVX2, for older processors.
+    PathUtils.join(bundled, "whisper-cli-compat" + ext),
+  ].filter(Boolean);
+  let programs = [];
+  for (let path of candidates) {
+    if ((await IOUtils.exists(path)) && !programs.includes(path)) {
+      programs.push(path);
+    }
+  }
+  if (!programs.length) {
+    for (let name of ["whisper-cli", "whisper-cpp", "whisper.cpp"]) {
+      try {
+        programs.push(await lazy.Subprocess.pathSearch(name + ext));
+        break;
+      } catch (e) {}
+    }
+  }
+
+  let safe = f => {
+    try {
+      return f() || null;
+    } catch (e) {
+      return null;
+    }
+  };
+  let profile = safe(() => PathUtils.profileDir);
+  let home = safe(() => Services.dirsvc.get("Home", Ci.nsIFile).path);
+  let local = IS_WINDOWS ? safe(() => Services.env.get("LOCALAPPDATA")) : null;
+  let dirs = [
+    PathUtils.join(bundled, "models"),
+    profile && PathUtils.join(profile, "whisper-models"),
+  ];
+  if (local) {
+    dirs.push(PathUtils.join(local, "whisper.cpp", "models"), PathUtils.join(local, "pywhispercpp", "models"));
+  }
+  if (!IS_WINDOWS) {
+    if (home) {
+      dirs.push(
+        PathUtils.join(home, ".local", "share", "whisper.cpp", "models"),
+        PathUtils.join(home, ".local", "share", "pywhispercpp", "models"),
+        PathUtils.join(home, ".cache", "whisper.cpp")
+      );
+    }
+    dirs.push("/usr/share/whisper.cpp/models", "/usr/share/whisper-cpp/models", "/usr/local/share/whisper.cpp/models");
+  }
+  dirs = dirs.filter(Boolean);
+  let models = [];
+  for (let dir of dirs) {
+    try {
+      for (let child of await IOUtils.getChildren(dir)) {
+        if (/^ggml-.*\.bin$/i.test(PathUtils.filename(child)) && !/for-tests/.test(child)) {
+          models.push(child);
+        }
+      }
+    } catch (e) {}
+  }
+  models = sortModels(models);
+  let chosenModel = Services.prefs.getStringPref("offox.whisper.model", "");
+  let model = chosenModel && (await IOUtils.exists(chosenModel)) ? chosenModel : models[0] || null;
+  return { programs, model, models };
+}
+
 async function readAll(pipe) {
   let text = "";
   let chunk;
@@ -163,10 +239,22 @@ async function readAll(pipe) {
   return text;
 }
 
+function cpuCount() {
+  try {
+    return Services.sysinfo.getProperty("cpucount") || 4;
+  } catch (e) {
+    return 4;
+  }
+}
+
 export function geckoMedia() {
   return new MediaConverter({
     separator: IS_WINDOWS ? "\\" : "/",
     findFFmpeg,
+    findWhisper,
+    fs: GeckoFS,
+    // Leave a core or two for the browser while subtitles are made.
+    threads: Math.max(1, Math.min(8, cpuCount() - 1)),
     async run(command, args) {
       let proc = await lazy.Subprocess.call({
         command,
@@ -181,14 +269,22 @@ export function geckoMedia() {
       let { exitCode } = await proc.wait();
       return { code: exitCode, stdout, stderr };
     },
-    async stream(command, args, onStderr) {
+    async stream(command, args, onStderr, { stdout = false, cwd } = {}) {
       let proc = await lazy.Subprocess.call({
         command,
         arguments: args,
         stderr: "pipe",
+        ...(cwd ? { workdir: cwd } : {}),
       });
       proc.stdin.close();
-      let drain = readAll(proc.stdout);
+      let drain = stdout
+        ? (async () => {
+            let c;
+            while ((c = await proc.stdout.readString())) {
+              onStderr(c);
+            }
+          })()
+        : readAll(proc.stdout);
       let chunk;
       while ((chunk = await proc.stderr.readString())) {
         onStderr(chunk);

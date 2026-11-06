@@ -50,3 +50,52 @@ FFmpeg's libavcodec. So Offox runs FFmpeg as a separate program and copies no
 VLC code. The trade-off is that unusual formats are converted once when you
 upload them, instead of being played directly. Playback then works in the normal
 `<video>` element, with seeking, picture-in-picture and keyboard shortcuts.
+
+## Subtitles and comments (OffTube)
+
+Every video can have subtitles in any number of languages, stored as WebVTT
+files in `videos/<id>/subtitles/`:
+
+| File | Where it comes from |
+|---|---|
+| `en.vtt` | a `.vtt` or `.srt` file you added (`.srt` is converted) |
+| `de.embedded.vtt` | a text subtitle track inside the video file (MKV, MP4), copied out with FFmpeg when you upload it |
+| `fr.auto.vtt` | **automatic subtitles**: made from the speech by whisper.cpp |
+| `en.translated.auto.vtt` | automatic subtitles translated into English |
+
+The player lists them in its CC menu, and the **CC** button on the watch page
+picks the language, adds files, deletes tracks and makes automatic subtitles.
+**Transcript** shows the text with clickable times.
+
+Automatic subtitles are made on your computer, never online. Offox runs
+[whisper.cpp](https://github.com/ggml-org/whisper.cpp) (MIT licence) as a
+separate program, like FFmpeg. The installers include it in the `whisper`
+folder next to Offox, with the multilingual `base` model. It recognises
+about 100 languages and detects the language by itself. Put a bigger
+`ggml-*.bin` model into `whisper/models` for more accurate subtitles:
+`small`, `medium` or `large-v3-turbo`. Offox uses the most accurate model it
+finds, or the one chosen in `about:offox → Automatic subtitles`. Offox reads
+the sound with FFmpeg. Without FFmpeg, the page decodes the sound itself
+(for formats Offox can play). New uploads get automatic subtitles unless they
+bring their own; turn this off on the upload page.
+
+Comments are stored in `videos/<id>/comments.json`. You can post, reply,
+like, heart, pin, edit and delete them, and sort by top or newest. A time
+such as `1:23` in a comment jumps to that point in the video.
+
+**Videos downloaded from YouTube with yt-dlp:** upload the video together with
+the files yt-dlp saved next to it, for example:
+
+```
+yt-dlp --write-subs --write-auto-subs --sub-langs "en.*,de" --convert-subs vtt \
+       --write-comments --write-info-json --write-thumbnail <url>
+```
+
+OffTube adds `<video>.<lang>.vtt`/`.srt` as subtitles. Ones that YouTube
+generated are marked as automatic. From `<video>.info.json`, OffTube takes
+the title, description, upload date, channel and comments, with their
+replies. It also uses the thumbnail.
+
+Existing OffTube sites get these pages automatically when Offox starts.
+Any page you changed by hand is first copied to `.offox-backup/<date>/` in
+the site folder.

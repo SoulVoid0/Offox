@@ -5,7 +5,9 @@
  *   videos/<id>/description.txt description
  *   videos/<id>/created.txt     creation date (ISO 8601)
  *   videos/<id>/thumbnail.jpg   optional preview image
- *   videos/<id>/info.json       optional: {file, converted, originalName, duration, views}
+ *   videos/<id>/info.json       optional: {file, converted, originalName, duration, views, source}
+ *   videos/<id>/comments.json   comments (see comments.js)
+ *   videos/<id>/subtitles/*.vtt subtitle tracks, e.g. en.vtt, de.auto.vtt (see subtitles.js)
  *   playlists/<id>.json         {id, name, description, created, videos: [ids]}
  */
 "use strict";

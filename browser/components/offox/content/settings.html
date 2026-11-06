@@ -20,6 +20,7 @@
       <a href="#sites" data-section="sites">Websites</a>
       <a href="#create" data-section="create">Create a website</a>
       <a href="#video" data-section="video">Video formats</a>
+      <a href="#subtitles" data-section="subtitles">Automatic subtitles</a>
       <a href="#offline" data-section="offline">Offline &amp; install</a>
     </nav>
     <a class="fireline-link" href="https://fireline.offox/" target="_blank">Open FireLine ↗</a>
@@ -89,6 +90,27 @@
       <form class="row" id="ffmpeg-form">
         <input id="ffmpeg-path" type="text" placeholder="Path to ffmpeg (leave empty to find it automatically)" aria-label="FFmpeg path">
         <button type="button" id="ffmpeg-choose">Choose…</button>
+        <button type="submit">Save</button>
+      </form>
+    </section>
+
+    <section id="subtitles">
+      <h2>Automatic subtitles</h2>
+      <p>OffTube can write subtitles for a video by listening to its speech, entirely on this
+        computer, in about 100 languages, and can translate them into English. It uses
+        <strong>whisper.cpp</strong> with a speech model (a <code>ggml-*.bin</code> file); the Offox
+        installers include both. Bigger models (small, medium, large-v3-turbo) are more accurate
+        but slower: put them in the <code>whisper/models</code> folder next to Offox or choose one below.</p>
+      <div class="panel" id="whisper-status"></div>
+      <form class="row" id="whisper-form">
+        <input id="whisper-path" type="text" placeholder="Path to whisper-cli (leave empty to use the one that comes with Offox)" aria-label="whisper.cpp program">
+        <button type="button" id="whisper-choose">Choose…</button>
+        <button type="submit">Save</button>
+      </form>
+      <form class="row" id="whisper-model-form">
+        <select id="whisper-model-list" aria-label="Installed speech models"></select>
+        <input id="whisper-model" type="text" placeholder="Path to a ggml model file (leave empty for the best installed one)" aria-label="Speech model">
+        <button type="button" id="whisper-model-choose">Choose…</button>
         <button type="submit">Save</button>
       </form>
     </section>

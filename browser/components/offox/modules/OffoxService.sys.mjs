@@ -373,6 +373,9 @@ export const OffoxService = {
       conflicts: this.registry.conflicts,
       ffmpeg,
       ffmpegChosen: Services.prefs.getStringPref("offox.ffmpeg.path", ""),
+      speech: await this.media.speechInfo(),
+      whisperChosen: Services.prefs.getStringPref("offox.whisper.path", ""),
+      whisperModelChosen: Services.prefs.getStringPref("offox.whisper.model", ""),
       network: networkStatus(),
       error: this.lastError,
     };
@@ -416,6 +419,14 @@ export const OffoxService = {
 
   setFFmpegPath(path) {
     Services.prefs.setStringPref("offox.ffmpeg.path", path || "");
+  },
+
+  setWhisperPath(path) {
+    Services.prefs.setStringPref("offox.whisper.path", path || "");
+  },
+
+  setWhisperModel(path) {
+    Services.prefs.setStringPref("offox.whisper.model", path || "");
   },
 
   /** Shows a folder in the system file manager. */
