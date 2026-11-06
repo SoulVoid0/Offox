@@ -105,6 +105,7 @@
     },
     {
       "id": "software",
+      "version": 2,
       "name": "Software storage",
       "icon": "💾",
       "description": "An app store for installers, portable programs and drivers: versions, platforms, categories, screenshots and download buttons.",

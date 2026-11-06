@@ -77,6 +77,22 @@ try {
   let mtime = fs.statSync(path.join(site.dir, "watch.html")).mtimeMs;
   await registry.load([root]);
   check(fs.statSync(path.join(site.dir, "watch.html")).mtimeMs === mtime, "an upgraded site is not upgraded again");
+
+  // Offox 0.5.0: the Software Store's new layout (template version 2).
+  let store = registry.lookup("software.store");
+  check(store.templateVersion === 2, "new Software Store sites are made from template version 2");
+  let storeManifest = path.join(store.dir, "offox-site.json");
+  let sm = JSON.parse(fs.readFileSync(storeManifest, "utf8"));
+  delete sm.templateVersion;
+  fs.writeFileSync(storeManifest, JSON.stringify(sm));
+  fs.writeFileSync(path.join(store.dir, "assets", "store.css"), ":root { --bg: #f5f7fb; }");
+  fs.mkdirSync(path.join(store.dir, "apps", "my-app"), { recursive: true });
+  fs.writeFileSync(path.join(store.dir, "apps", "my-app", "app.json"), '{"name":"My App"}');
+  await registry.load([root]);
+  store = registry.lookup("software.store");
+  check(store.templateVersion === 2, "an older Software Store was upgraded to version 2");
+  check(fs.readFileSync(path.join(store.dir, "assets", "store.css"), "utf8").includes(".carousel"), "the store got the new layout");
+  check(fs.readFileSync(path.join(store.dir, "apps", "my-app", "app.json"), "utf8") === '{"name":"My App"}', "the store's apps are untouched");
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
 }
